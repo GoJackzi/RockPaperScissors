@@ -51,8 +51,8 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     
     console.log(`[fhEVM] Encrypting move ${move} for contract ${contractAddress}`)
     
-    // Import the correct SDK functions
-    const { createInstance, SepoliaConfig, initSDK } = await import("@zama-fhe/relayer-sdk/web")
+    // Import the correct SDK functions from bundle version (browser-optimized)
+    const { createInstance, SepoliaConfig, initSDK } = await import("@zama-fhe/relayer-sdk/bundle")
     
     // Initialize SDK first to ensure WASM modules are loaded
     console.log(`[fhEVM] Initializing SDK...`)
@@ -107,8 +107,8 @@ export async function decryptResult(
     
     console.log(`[fhEVM] Decrypting result for contract ${contractAddress}`)
     
-    // Import the correct SDK functions
-    const { createInstance, SepoliaConfig, initSDK } = await import("@zama-fhe/relayer-sdk/web")
+    // Import the correct SDK functions from bundle version (browser-optimized)
+    const { createInstance, SepoliaConfig, initSDK } = await import("@zama-fhe/relayer-sdk/bundle")
     
     // Initialize SDK first to ensure WASM modules are loaded
     await initSDK()
