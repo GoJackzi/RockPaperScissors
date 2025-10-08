@@ -7,7 +7,7 @@
 [![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000?style=for-the-badge&logo=vercel)](https://encrypted-rock-paper-scissors.vercel.app)
 [![Built with Next.js](https://img.shields.io/badge/Built%20with-Next.js-000000?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![Powered by fhEVM](https://img.shields.io/badge/Powered%20by-fhEVM-FF6B6B?style=for-the-badge)](https://docs.zama.ai)
-[![Sepolia Testnet](https://img.shields.io/badge/Network-Sepolia-627EEA?style=for-the-badge)](https://sepolia.etherscan.io/address/0x4D0043ee8B496cDB6e6A6CEEcDeb8f3c55708e01)
+[![Sepolia Testnet](https://img.shields.io/badge/Network-Sepolia-627EEA?style=for-the-badge)](https://sepolia.etherscan.io/address/0x0C2029036D53B763DFc9e7AADB2A43a911b7a7E5)
 
 [🎮 **Play Now**](https://encrypted-rock-paper-scissors.vercel.app) • [📖 **Documentation**](#how-it-works) • [🚀 **Deploy**](#deployment)
 
@@ -211,7 +211,7 @@ SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
 
 | Property | Value |
 |----------|-------|
-| **Contract Address** | [`0x4D0043ee8B496cDB6e6A6CEEcDeb8f3c55708e01`](https://sepolia.etherscan.io/address/0x4D0043ee8B496cDB6e6A6CEEcDeb8f3c55708e01) |
+| **Contract Address** | [`0x0C2029036D53B763DFc9e7AADB2A43a911b7a7E5`](https://sepolia.etherscan.io/address/0x0C2029036D53B763DFc9e7AADB2A43a911b7a7E5) |
 | **Network** | Sepolia Testnet |
 | **Chain ID** | 11155111 |
 | **Compiler** | Solidity 0.8.24 |
@@ -454,7 +454,7 @@ SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
 
 | Property | Value |
 |----------|-------|
-| **Contract Address** | [`0x4D0043ee8B496cDB6e6A6CEEcDeb8f3c55708e01`](https://sepolia.etherscan.io/address/0x4D0043ee8B496cDB6e6A6CEEcDeb8f3c55708e01) |
+| **Contract Address** | [`0x0C2029036D53B763DFc9e7AADB2A43a911b7a7E5`](https://sepolia.etherscan.io/address/0x0C2029036D53B763DFc9e7AADB2A43a911b7a7E5) |
 | **Network** | Sepolia Testnet |
 | **Chain ID** | 11155111 |
 | **Compiler** | Solidity 0.8.24 |
@@ -697,7 +697,7 @@ SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
 
 | Property | Value |
 |----------|-------|
-| **Contract Address** | [`0x4D0043ee8B496cDB6e6A6CEEcDeb8f3c55708e01`](https://sepolia.etherscan.io/address/0x4D0043ee8B496cDB6e6A6CEEcDeb8f3c55708e01) |
+| **Contract Address** | [`0x0C2029036D53B763DFc9e7AADB2A43a911b7a7E5`](https://sepolia.etherscan.io/address/0x0C2029036D53B763DFc9e7AADB2A43a911b7a7E5) |
 | **Network** | Sepolia Testnet |
 | **Chain ID** | 11155111 |
 | **Compiler** | Solidity 0.8.24 |
