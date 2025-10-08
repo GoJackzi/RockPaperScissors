@@ -3,9 +3,33 @@
 import { ReactNode } from "react"
 import { WagmiProvider } from "wagmi"
 import { RainbowKitProvider, getDefaultConfig } from "@rainbow-me/rainbowkit"
-import { sepolia } from "wagmi/chains"
+import { defineChain } from "viem"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import "@rainbow-me/rainbowkit/styles.css"
+
+// Define custom Sepolia chain with specific RPC
+const sepolia = defineChain({
+  id: 11155111,
+  name: 'Sepolia',
+  network: 'sepolia',
+  nativeCurrency: {
+    decimals: 18,
+    name: 'Ether',
+    symbol: 'ETH',
+  },
+  rpcUrls: {
+    default: {
+      http: [process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'],
+    },
+    public: {
+      http: [process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'],
+    },
+  },
+  blockExplorers: {
+    default: { name: 'Etherscan', url: 'https://sepolia.etherscan.io' },
+  },
+  testnet: true,
+})
 
 const config = getDefaultConfig({
   appName: "Encrypted Rock Paper Scissors",
