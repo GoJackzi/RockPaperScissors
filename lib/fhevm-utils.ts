@@ -62,8 +62,12 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     const { initSDK, createInstance } = await import("@zama-fhe/relayer-sdk/web")
     
     console.log(`[fhEVM] Initializing SDK...`)
-    // CRITICAL: Initialize WASM modules first
-    await initSDK()
+    // CRITICAL: Initialize WASM modules first with timeout
+    const initPromise = initSDK()
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("SDK initialization timeout after 30 seconds")), 30000)
+    )
+    await Promise.race([initPromise, timeoutPromise])
     console.log(`[fhEVM] SDK initialized successfully`)
     
     console.log(`[fhEVM] Creating FHEVM instance...`)
@@ -76,6 +80,18 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     console.log(`[fhEVM] - NEXT_PUBLIC_FHEVM_RELAYER_URL: ${process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL}`)
     console.log(`[fhEVM] Using relayer URL: ${relayerUrl}`)
     console.log(`[fhEVM] Using RPC URL: ${rpcUrl}`)
+    
+    // Test relayer connectivity first
+    console.log(`[fhEVM] Testing relayer connectivity...`)
+    try {
+      const response = await fetch(relayerUrl, { 
+        method: 'GET',
+        signal: AbortSignal.timeout(5000) // 5 second timeout
+      })
+      console.log(`[fhEVM] Relayer response status: ${response.status}`)
+    } catch (error) {
+      console.warn(`[fhEVM] Relayer connectivity warning:`, error)
+    }
     
     // Create a completely custom config without SepoliaConfig
     const customConfig = {
@@ -98,7 +114,12 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     
     console.log(`[fhEVM] Custom config:`, customConfig)
     
-    const fhevmInstance = await createInstance(customConfig)
+    // Create FHEVM instance with timeout
+    const createPromise = createInstance(customConfig)
+    const createTimeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("FHEVM instance creation timeout after 30 seconds")), 30000)
+    )
+    const fhevmInstance = await Promise.race([createPromise, createTimeoutPromise])
     
     // Create encrypted input for the move
     const encryptedInput = fhevmInstance.createEncryptedInput(contractAddress, userAddress)
