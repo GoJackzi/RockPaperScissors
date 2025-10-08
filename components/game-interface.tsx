@@ -22,10 +22,12 @@ interface Game {
   player1Committed: boolean
   player2Committed: boolean
   finished: boolean
+  status: number // 0=WaitingForPlayers, 1=WaitingForMoves, 2=MovesCommitted, 3=DecryptionInProgress, 4=ResultsDecrypted
+  resultsDecrypted: boolean
 }
 
 // Contract configuration
-const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x2FD90120CC6fdF858063D0b773f8D7b7deE2a493") as `0x${string}`
+const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x0C2029036D53B763DFc9e7AADB2A43a911b7a7E5") as `0x${string}`
 const CONTRACT_ABI = [
   {
     "inputs": [],
@@ -54,20 +56,53 @@ const CONTRACT_ABI = [
   },
   {
     "inputs": [{"internalType": "uint256", "name": "gameId", "type": "uint256"}],
+    "name": "requestGameResolution",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "gameId", "type": "uint256"}],
     "name": "getGame",
     "outputs": [
       {"internalType": "address", "name": "player1", "type": "address"},
       {"internalType": "address", "name": "player2", "type": "address"},
+      {"internalType": "uint8", "name": "status", "type": "uint8"},
       {"internalType": "bool", "name": "player1Committed", "type": "bool"},
       {"internalType": "bool", "name": "player2Committed", "type": "bool"},
-      {"internalType": "bool", "name": "gameFinished", "type": "bool"}
+      {"internalType": "bool", "name": "resultsDecrypted", "type": "bool"}
     ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "gameId", "type": "uint256"}],
+    "name": "getGameResults",
+    "outputs": [
+      {"internalType": "bool", "name": "isDraw", "type": "bool"},
+      {"internalType": "bool", "name": "player1Wins", "type": "bool"},
+      {"internalType": "address", "name": "winner", "type": "address"}
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "gameId", "type": "uint256"}],
+    "name": "isGameReady",
+    "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
     "name": "gameCounter",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "gameId", "type": "uint256"}],
+    "name": "getGameRequestId",
     "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
     "stateMutability": "view",
     "type": "function"
@@ -151,6 +186,16 @@ export function GameInterface() {
     }
   })
 
+  const { writeContract: requestGameResolutionWrite, isPending: isRequestingResolution } = useContractWrite({
+    onSuccess: (data) => {
+      console.log('Game resolution requested successfully:', data)
+      setGameState("waiting-for-result")
+    },
+    onError: (error) => {
+      console.error('Error requesting game resolution:', error)
+    }
+  })
+
   // Poll game state when we have a game ID
   const { data: gameData, refetch: refetchGame } = useContractRead({
     address: CONTRACT_ADDRESS,
@@ -164,7 +209,7 @@ export function GameInterface() {
   // Handle game data updates without causing infinite loops
   useEffect(() => {
     if (gameData && currentGame.id) {
-      const [player1, player2, player1Committed, player2Committed, finished] = gameData
+      const [player1, player2, status, player1Committed, player2Committed, resultsDecrypted] = gameData
       
       // Only update if data has actually changed
       const hasChanged = (
@@ -172,7 +217,8 @@ export function GameInterface() {
         currentGame.player2 !== player2 ||
         currentGame.player1Committed !== player1Committed ||
         currentGame.player2Committed !== player2Committed ||
-        currentGame.finished !== finished
+        currentGame.status !== status ||
+        currentGame.resultsDecrypted !== resultsDecrypted
       )
 
       if (hasChanged) {
@@ -182,29 +228,34 @@ export function GameInterface() {
           player2: player2,
           player1Committed,
           player2Committed,
-          finished
+          status,
+          resultsDecrypted,
+          finished: status === 4 // ResultsDecrypted
         }))
 
-        // Update game state based on contract data
-        if (finished) {
-          setGameState("completed")
-        } else if (player1Committed && player2Committed) {
-          setGameState("waiting-for-result")
-        } else if (player1 && player2) {
-          // Both players joined, check who can make a move
-          if (address === player1 && !player1Committed) {
-            setGameState("waiting-for-move")
-          } else if (address === player2 && !player2Committed) {
-            setGameState("waiting-for-move")
-          } else {
+        // Update game state based on contract status
+        switch (status) {
+          case 0: // WaitingForPlayers
             setGameState("waiting-for-opponent")
-          }
-        } else if (player1 && !player2) {
-          setGameState("waiting-for-opponent")
-          // If we're player1 and waiting for opponent, set the game ID to share
-          if (address === player1 && !gameIdToShare) {
-            setGameIdToShare(currentGame.id.toString())
-          }
+            // If we're player1 and waiting for opponent, set the game ID to share
+            if (address === player1 && !gameIdToShare) {
+              setGameIdToShare(currentGame.id.toString())
+            }
+            break
+          case 1: // WaitingForMoves
+            setGameState("waiting-for-move")
+            break
+          case 2: // MovesCommitted
+            setGameState("waiting-for-result")
+            break
+          case 3: // DecryptionInProgress
+            setGameState("waiting-for-result")
+            break
+          case 4: // ResultsDecrypted
+            setGameState("completed")
+            break
+          default:
+            setGameState("waiting-for-opponent")
         }
       }
     }
@@ -339,6 +390,23 @@ export function GameInterface() {
     } catch (error) {
       console.error("Failed to submit move:", error)
       setGameState(isPlayer1 ? "waiting-for-opponent" : "waiting-for-move")
+    }
+  }
+
+  const handleRequestGameResolution = async () => {
+    if (!currentGame.id) return
+
+    try {
+      // Request game resolution (triggers FHE decryption)
+      requestGameResolutionWrite({
+        address: CONTRACT_ADDRESS,
+        abi: CONTRACT_ABI,
+        functionName: 'requestGameResolution',
+        args: [BigInt(currentGame.id)]
+      })
+      
+    } catch (error) {
+      console.error('Error requesting game resolution:', error)
     }
   }
 
@@ -666,15 +734,41 @@ export function GameInterface() {
         <Card>
           <CardContent className="text-center py-8">
             <div className="space-y-4">
-              <div className="flex items-center justify-center gap-2">
-                <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
-                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
-              </div>
-              <p className="text-muted-foreground">Waiting for opponent's move...</p>
-              <p className="text-sm text-muted-foreground">
-                Once both moves are submitted, the smart contract will determine the winner using encrypted computation
-              </p>
+              {currentGame.status === 2 ? (
+                // Both moves committed - show resolution button
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  </div>
+                  <p className="text-green-600 font-semibold">Both moves submitted!</p>
+                  <p className="text-sm text-muted-foreground">
+                    Click below to resolve the game using FHE decryption
+                  </p>
+                  <Button
+                    onClick={handleRequestGameResolution}
+                    disabled={isRequestingResolution}
+                    className="w-full"
+                    size="lg"
+                  >
+                    {isRequestingResolution ? "Requesting Resolution..." : "Resolve Game"}
+                  </Button>
+                </div>
+              ) : (
+                // Still waiting for moves
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                    <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                    <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+                  </div>
+                  <p className="text-muted-foreground">Waiting for opponent's move...</p>
+                  <p className="text-sm text-muted-foreground">
+                    Once both moves are submitted, you can resolve the game using encrypted computation
+                  </p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

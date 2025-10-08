@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "C:\\Users\\captg\\RPSv0\\contracts\\RockPaperScissors.sol": {
-      "lastModificationDate": 1759891160996,
-      "contentHash": "925169e7ad85e7d6c1c472a00e6ad215",
+      "lastModificationDate": 1759897289719,
+      "contentHash": "b13d71ec70ad50503f30a568c9ac9d43",
       "sourceName": "contracts/RockPaperScissors.sol",
       "solcConfig": {
         "version": "0.8.24",
@@ -13,6 +13,7 @@
             "runs": 200
           },
           "evmVersion": "cancun",
+          "viaIR": true,
           "outputSelection": {
             "*": {
               "*": [
@@ -41,7 +42,7 @@
       ]
     },
     "C:\\Users\\captg\\RPSv0\\node_modules\\@fhevm\\solidity\\lib\\FHE.sol": {
-      "lastModificationDate": 1759886151818,
+      "lastModificationDate": 1759890354032,
       "contentHash": "4595eb92a31223262d4e29a27c938d97",
       "sourceName": "@fhevm/solidity/lib/FHE.sol",
       "solcConfig": {
@@ -52,6 +53,7 @@
             "runs": 200
           },
           "evmVersion": "cancun",
+          "viaIR": true,
           "outputSelection": {
             "*": {
               "*": [
@@ -83,7 +85,7 @@
       ]
     },
     "C:\\Users\\captg\\RPSv0\\node_modules\\@fhevm\\solidity\\config\\ZamaConfig.sol": {
-      "lastModificationDate": 1759886151822,
+      "lastModificationDate": 1759890355263,
       "contentHash": "18a39bcfe0027283f975050db52d9058",
       "sourceName": "@fhevm/solidity/config/ZamaConfig.sol",
       "solcConfig": {
@@ -94,6 +96,7 @@
             "runs": 200
           },
           "evmVersion": "cancun",
+          "viaIR": true,
           "outputSelection": {
             "*": {
               "*": [
@@ -125,7 +128,7 @@
       ]
     },
     "C:\\Users\\captg\\RPSv0\\node_modules\\encrypted-types\\EncryptedTypes.sol": {
-      "lastModificationDate": 1759886151815,
+      "lastModificationDate": 1759890352205,
       "contentHash": "521a624fad71cd29fc4b7c443b41bb86",
       "sourceName": "encrypted-types/EncryptedTypes.sol",
       "solcConfig": {
@@ -136,6 +139,7 @@
             "runs": 200
           },
           "evmVersion": "cancun",
+          "viaIR": true,
           "outputSelection": {
             "*": {
               "*": [
@@ -159,7 +163,7 @@
       "artifacts": []
     },
     "C:\\Users\\captg\\RPSv0\\node_modules\\@fhevm\\solidity\\lib\\Impl.sol": {
-      "lastModificationDate": 1759886151821,
+      "lastModificationDate": 1759890354839,
       "contentHash": "82d95a375319ded89a84a9323575b351",
       "sourceName": "@fhevm/solidity/lib/Impl.sol",
       "solcConfig": {
@@ -170,6 +174,7 @@
             "runs": 200
           },
           "evmVersion": "cancun",
+          "viaIR": true,
           "outputSelection": {
             "*": {
               "*": [
@@ -200,7 +205,7 @@
       ]
     },
     "C:\\Users\\captg\\RPSv0\\node_modules\\@fhevm\\solidity\\lib\\FheType.sol": {
-      "lastModificationDate": 1759886151819,
+      "lastModificationDate": 1759890354331,
       "contentHash": "65f472a3e319ba73ac6b19a5e8660d15",
       "sourceName": "@fhevm/solidity/lib/FheType.sol",
       "solcConfig": {
@@ -211,6 +216,7 @@
             "runs": 200
           },
           "evmVersion": "cancun",
+          "viaIR": true,
           "outputSelection": {
             "*": {
               "*": [
@@ -234,7 +240,7 @@
       "artifacts": []
     },
     "C:\\Users\\captg\\RPSv0\\node_modules\\@zama-fhe\\oracle-solidity\\address\\ZamaOracleAddress.sol": {
-      "lastModificationDate": 1759886174405,
+      "lastModificationDate": 1759890355323,
       "contentHash": "7d4cce05c3d5e3799454d5a9fba75048",
       "sourceName": "@zama-fhe/oracle-solidity/address/ZamaOracleAddress.sol",
       "solcConfig": {
@@ -245,6 +251,7 @@
             "runs": 200
           },
           "evmVersion": "cancun",
+          "viaIR": true,
           "outputSelection": {
             "*": {
               "*": [

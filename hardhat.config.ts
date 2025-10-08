@@ -10,6 +10,7 @@ const config: HardhatUserConfig = {
         runs: 200,
       },
       evmVersion: "cancun",
+      viaIR: true, // Enable IR-based code generator for complex contracts
     },
   },
   networks: {

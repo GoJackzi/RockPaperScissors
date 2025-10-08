@@ -1,14 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { FHE, euint8, externalEuint8, ebool } from "@fhevm/solidity/lib/FHE.sol";
-import { SepoliaConfig } from "@fhevm/solidity/config/ZamaConfig.sol";
+import "@fhevm/solidity/lib/FHE.sol";
+import {SepoliaConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
 
 /// @title Encrypted Rock Paper Scissors Game
-/// @notice A privacy-preserving rock paper scissors game using Zama's fhEVM
+/// @notice A privacy-preserving rock paper scissors game using Zama's FHEVM
 /// @dev Uses Fully Homomorphic Encryption to keep moves private until both players commit
 contract RockPaperScissors is SepoliaConfig {
     // Move encoding: 0 = Rock, 1 = Paper, 2 = Scissors
+    
+    enum GameStatus {
+        WaitingForPlayers,
+        WaitingForMoves,
+        MovesCommitted,
+        DecryptionInProgress,
+        ResultsDecrypted
+    }
     
     struct Game {
         address player1;
@@ -17,23 +25,29 @@ contract RockPaperScissors is SepoliaConfig {
         euint8 encryptedMove2;
         bool player1Committed;
         bool player2Committed;
-        bool gameFinished;
+        GameStatus status;
         uint256 createdAt;
-        EncryptedResult encryptedResults;
-    }
-    
-    struct EncryptedResult {
-        ebool isDraw;
-        ebool player1Wins;
-        bool resultsComputed;
+        uint256 requestId;
+        
+        // Decrypted results (only available after decryption)
+        bool isDraw;
+        bool player1Wins;
+        bool resultsDecrypted;
     }
     
     mapping(uint256 => Game) public games;
+    mapping(uint256 => uint256) public requestIdToGameId; // Map request ID to game ID
     uint256 public gameCounter;
     
     event GameCreated(uint256 indexed gameId, address indexed player1);
+    event PlayerJoined(uint256 indexed gameId, address indexed player2);
     event MoveMade(uint256 indexed gameId, address indexed player, bool isPlayer1);
+    event DecryptionRequested(uint256 indexed gameId, uint256 indexed requestId);
     event GameFinished(uint256 indexed gameId, address winner, bool isDraw);
+    
+    constructor() {
+        // Initialize with any required setup
+    }
     
     /// @notice Create a new game
     /// @return gameId The ID of the newly created game
@@ -47,14 +61,17 @@ contract RockPaperScissors is SepoliaConfig {
             encryptedMove2: FHE.asEuint8(0),
             player1Committed: false,
             player2Committed: false,
-            gameFinished: false,
+            status: GameStatus.WaitingForPlayers,
             createdAt: block.timestamp,
-            encryptedResults: EncryptedResult({
-                isDraw: FHE.asEbool(false),
-                player1Wins: FHE.asEbool(false),
-                resultsComputed: false
-            })
+            requestId: 0,
+            isDraw: false,
+            player1Wins: false,
+            resultsDecrypted: false
         });
+        
+        // FHEVM v0.8 compliance: Allow encrypted variables for this contract
+        FHE.allowThis(games[gameId].encryptedMove1);
+        FHE.allowThis(games[gameId].encryptedMove2);
         
         emit GameCreated(gameId, msg.sender);
         return gameId;
@@ -67,8 +84,12 @@ contract RockPaperScissors is SepoliaConfig {
         require(game.player1 != address(0), "Game does not exist");
         require(game.player2 == address(0), "Game already has two players");
         require(game.player1 != msg.sender, "Cannot play against yourself");
+        require(game.status == GameStatus.WaitingForPlayers, "Game not in waiting state");
         
         game.player2 = msg.sender;
+        game.status = GameStatus.WaitingForMoves;
+        
+        emit PlayerJoined(gameId, msg.sender);
     }
     
     /// @notice Submit an encrypted move
@@ -81,7 +102,7 @@ contract RockPaperScissors is SepoliaConfig {
         bytes calldata inputProof
     ) external {
         Game storage game = games[gameId];
-        require(!game.gameFinished, "Game already finished");
+        require(game.status == GameStatus.WaitingForMoves, "Game not accepting moves");
         require(
             msg.sender == game.player1 || msg.sender == game.player2,
             "Not a player in this game"
@@ -90,8 +111,8 @@ contract RockPaperScissors is SepoliaConfig {
         // Validate and convert the encrypted input
         euint8 move = FHE.fromExternal(encryptedMove, inputProof);
         
-        // Verify move is valid (0, 1, or 2)
-        // Note: In production, add additional validation
+        // FHEVM v0.8 compliance: Allow the encrypted move for this contract
+        FHE.allowThis(move);
         
         if (msg.sender == game.player1) {
             require(!game.player1Committed, "Player 1 already committed");
@@ -105,28 +126,28 @@ contract RockPaperScissors is SepoliaConfig {
             emit MoveMade(gameId, msg.sender, false);
         }
         
-        // If both players have committed, the game can be resolved
+        // If both players have committed, mark as ready for resolution
         if (game.player1Committed && game.player2Committed) {
-            game.gameFinished = true;
+            game.status = GameStatus.MovesCommitted;
         }
     }
     
-    /// @notice Determine the winner using FHE operations
+    /// @notice Request decryption of game results using FHEVM v0.8 async pattern
     /// @param gameId The ID of the game
-    /// @return winner The address of the winner (or address(0) for draw)
-    function determineWinner(uint256 gameId) external returns (address) {
+    function requestGameResolution(uint256 gameId) external {
         Game storage game = games[gameId];
-        require(game.gameFinished, "Game not finished yet");
+        require(game.status == GameStatus.MovesCommitted, "Game not ready for resolution");
+        require(
+            msg.sender == game.player1 || msg.sender == game.player2,
+            "Not a player in this game"
+        );
         
+        // Determine winner using FHE operations
         euint8 move1 = game.encryptedMove1;
         euint8 move2 = game.encryptedMove2;
         
         // Check if moves are equal (draw)
-        ebool isDraw = FHE.eq(move1, move2);
-        
-        // Rock (0) beats Scissors (2)
-        // Paper (1) beats Rock (0)
-        // Scissors (2) beats Paper (1)
+        ebool isDrawEncrypted = FHE.eq(move1, move2);
         
         // Player 1 wins if:
         // (move1 == 0 && move2 == 2) || (move1 == 1 && move2 == 0) || (move1 == 2 && move2 == 1)
@@ -142,80 +163,76 @@ contract RockPaperScissors is SepoliaConfig {
         ebool move2IsPaper = FHE.eq(move2, FHE.asEuint8(1));
         ebool scissorsBeatsPaper = FHE.and(move1IsScissors, move2IsPaper);
         
-        ebool player1Wins = FHE.or(FHE.or(rockBeatsScissors, paperBeatsRock), scissorsBeatsPaper);
+        ebool player1WinsEncrypted = FHE.or(FHE.or(rockBeatsScissors, paperBeatsRock), scissorsBeatsPaper);
         
-        // Store encrypted results for later decryption
-        game.encryptedResults = EncryptedResult({
-            isDraw: isDraw,
-            player1Wins: player1Wins,
-            resultsComputed: true
-        });
+        // FHEVM v0.8 compliance: Allow access to encrypted results for decryption
+        FHE.allowTransient(isDrawEncrypted, msg.sender);
+        FHE.allowTransient(player1WinsEncrypted, msg.sender);
         
-        // Request decryption of the results via oracle
-        // Note: In FHEVM v0.8, decryption is handled by the oracle automatically
-        // when the encrypted values are accessed
+        // FHEVM v0.8 compliance: Request async decryption
+        bytes32[] memory cts = new bytes32[](2);
+        cts[0] = FHE.toBytes32(isDrawEncrypted);
+        cts[1] = FHE.toBytes32(player1WinsEncrypted);
         
-        // Return placeholder - actual decryption happens via oracle
-        // The frontend will call getGameResult() to get the decrypted winner
-        return address(0);
+        uint256 requestId = FHE.requestDecryption(cts, this.gameResolutionCallback.selector);
+        game.requestId = requestId;
+        game.status = GameStatus.DecryptionInProgress;
+        requestIdToGameId[requestId] = gameId;
+        
+        emit DecryptionRequested(gameId, requestId);
     }
     
-    /// @notice Get encrypted result for decryption via Gateway
-    /// @param gameId The ID of the game
-    /// @return isDraw Encrypted boolean indicating if it's a draw
-    /// @return player1Wins Encrypted boolean indicating if player 1 wins
-    function getEncryptedResult(uint256 gameId) external returns (ebool, ebool) {
+    /// @notice FHEVM v0.8 compliant callback function for game resolution decryption
+    /// @param requestId The request ID from the decryption request
+    /// @param cleartexts The decrypted results
+    /// @param decryptionProof The decryption proof
+    function gameResolutionCallback(
+        uint256 requestId,
+        bytes memory cleartexts,
+        bytes memory decryptionProof
+    ) external {
+        // Find the game using the request ID mapping
+        uint256 gameId = requestIdToGameId[requestId];
+        require(gameId != 0 || games[0].requestId == requestId, "Request ID not found");
+        
         Game storage game = games[gameId];
-        require(game.encryptedResults.resultsComputed, "Results not computed yet");
         
-        // Grant permission to view encrypted results
-        FHE.allowTransient(game.encryptedResults.isDraw, msg.sender);
-        FHE.allowTransient(game.encryptedResults.player1Wins, msg.sender);
+        // FHEVM v0.8 compliance: Verify the decryption signatures
+        FHE.checkSignatures(requestId, cleartexts, decryptionProof);
         
-        return (game.encryptedResults.isDraw, game.encryptedResults.player1Wins);
-    }
-    
-    /// @notice Get encrypted move for a player (only callable by that player)
-    /// @param gameId The ID of the game
-    /// @return The encrypted move
-    function getMyMove(uint256 gameId) external returns (euint8) {
-        Game storage game = games[gameId];
-        require(
-            msg.sender == game.player1 || msg.sender == game.player2,
-            "Not a player in this game"
-        );
+        // Decode the results
+        (bool isDraw, bool player1Wins) = abi.decode(cleartexts, (bool, bool));
         
-        if (msg.sender == game.player1) {
-            // Grant permission to view own encrypted move
-            FHE.allowTransient(game.encryptedMove1, msg.sender);
-            return game.encryptedMove1;
-        } else {
-            FHE.allowTransient(game.encryptedMove2, msg.sender);
-            return game.encryptedMove2;
+        // Store the decrypted results
+        game.isDraw = isDraw;
+        game.player1Wins = player1Wins;
+        game.resultsDecrypted = true;
+        game.status = GameStatus.ResultsDecrypted;
+        
+        // Determine the winner
+        address winner = address(0);
+        if (!game.isDraw) {
+            winner = game.player1Wins ? game.player1 : game.player2;
         }
-    }
-    
-    /// @notice Check if game is ready to be resolved
-    /// @param gameId The ID of the game
-    /// @return Whether both players have committed their moves
-    function isGameReady(uint256 gameId) external view returns (bool) {
-        Game storage game = games[gameId];
-        return game.player1Committed && game.player2Committed;
+        
+        emit GameFinished(gameId, winner, isDraw);
     }
     
     /// @notice Get game information
     /// @param gameId The ID of the game
     /// @return player1 Address of player 1
     /// @return player2 Address of player 2
+    /// @return status Current game status
     /// @return player1Committed Whether player 1 has committed their move
     /// @return player2Committed Whether player 2 has committed their move
-    /// @return gameFinished Whether the game is finished
+    /// @return resultsDecrypted Whether results have been decrypted
     function getGame(uint256 gameId) external view returns (
         address player1,
         address player2,
+        GameStatus status,
         bool player1Committed,
         bool player2Committed,
-        bool gameFinished
+        bool resultsDecrypted
     ) {
         Game storage game = games[gameId];
         require(game.player1 != address(0), "Game does not exist");
@@ -223,9 +240,53 @@ contract RockPaperScissors is SepoliaConfig {
         return (
             game.player1,
             game.player2,
+            game.status,
             game.player1Committed,
             game.player2Committed,
-            game.gameFinished
+            game.resultsDecrypted
         );
+    }
+    
+    /// @notice Get decrypted game results (only available after decryption)
+    /// @param gameId The ID of the game
+    /// @return isDraw Whether the game was a draw
+    /// @return player1Wins Whether player 1 won
+    /// @return winner The address of the winner (address(0) for draw)
+    function getGameResults(uint256 gameId) external view returns (
+        bool isDraw,
+        bool player1Wins,
+        address winner
+    ) {
+        Game storage game = games[gameId];
+        require(game.player1 != address(0), "Game does not exist");
+        require(game.resultsDecrypted, "Results not yet decrypted");
+        
+        address winnerAddress = address(0);
+        if (!game.isDraw) {
+            winnerAddress = game.player1Wins ? game.player1 : game.player2;
+        }
+        
+        return (game.isDraw, game.player1Wins, winnerAddress);
+    }
+    
+    /// @notice Check if game is ready to be resolved
+    /// @param gameId The ID of the game
+    /// @return Whether both players have committed their moves
+    function isGameReady(uint256 gameId) external view returns (bool) {
+        Game storage game = games[gameId];
+        return game.player1Committed && game.player2Committed && game.status == GameStatus.MovesCommitted;
+    }
+    
+    /// @notice Get the current game counter
+    /// @return The current game counter value
+    function getGameCounter() external view returns (uint256) {
+        return gameCounter;
+    }
+    
+    /// @notice Get the request ID for a game (for debugging)
+    /// @param gameId The ID of the game
+    /// @return The request ID for decryption
+    function getGameRequestId(uint256 gameId) external view returns (uint256) {
+        return games[gameId].requestId;
     }
 }

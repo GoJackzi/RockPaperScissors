@@ -6,6 +6,7 @@
     "build": "next build",
     "compile": "hardhat compile",
     "deploy:contract": "hardhat run scripts/deploy.ts --network sepolia",
+    "verify:contract": "hardhat verify --network sepolia 0x2FD90120CC6fdF858063D0b773f8D7b7deE2a493",
     "dev": "next dev",
     "lint": "next lint",
     "start": "next start"
@@ -15,7 +16,6 @@
     "@hookform/resolvers": "^3.10.0",
     "@nomicfoundation/hardhat-chai-matchers": "^2.1.0",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.11",
-    "@nomicfoundation/hardhat-verify": "^2.0.9",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",
     "@radix-ui/react-aspect-ratio": "1.1.1",
@@ -90,6 +90,7 @@
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^3.1.0",
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@nomiclabs/hardhat-etherscan": "^3.1.8",
     "@tailwindcss/postcss": "^4.1.9",
     "@types/node": "^22",
     "@types/react": "^19",
