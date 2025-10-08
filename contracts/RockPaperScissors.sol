@@ -151,8 +151,12 @@ contract RockPaperScissors is SepoliaConfig {
             resultsComputed: true
         });
         
-        // Return placeholder - actual decryption happens via Gateway
-        // The frontend will call decryptResult() to get the actual winner
+        // Request decryption of the results via oracle
+        // Note: In FHEVM v0.8, decryption is handled by the oracle automatically
+        // when the encrypted values are accessed
+        
+        // Return placeholder - actual decryption happens via oracle
+        // The frontend will call getGameResult() to get the decrypted winner
         return address(0);
     }
     

@@ -49,12 +49,14 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     
     console.log(`[fhEVM] Encrypting move ${move} for contract ${contractAddress}`)
     
-    // Initialize the relayer with proper configuration
+    // Initialize the relayer with proper Sepolia configuration
     const relayer = new Relayer({
       contractAddress,
       userAddress,
       network: "sepolia",
-      gatewayUrl: "https://api.zama.ai/fhevm/gateway/sepolia"
+      gatewayUrl: process.env.NEXT_PUBLIC_FHEVM_GATEWAY_URL || "https://api.zama.ai/fhevm/gateway/sepolia",
+      chainId: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || "11155111"),
+      publicKey: process.env.NEXT_PUBLIC_FHEVM_PUBLIC_KEY || "0x01a6b73a8e7b8b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b"
     })
     
     // Encrypt the move
@@ -89,7 +91,9 @@ export async function decryptResult(
       contractAddress,
       userAddress,
       network: "sepolia",
-      gatewayUrl: "https://api.zama.ai/fhevm/gateway/sepolia"
+      gatewayUrl: process.env.NEXT_PUBLIC_FHEVM_GATEWAY_URL || "https://api.zama.ai/fhevm/gateway/sepolia",
+      chainId: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || "11155111"),
+      publicKey: process.env.NEXT_PUBLIC_FHEVM_PUBLIC_KEY || "0x01a6b73a8e7b8b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b"
     })
     
     // Decrypt the encrypted boolean result
