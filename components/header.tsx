@@ -14,10 +14,10 @@ export function Header() {
           </div>
 
           <nav className="hidden md:flex items-center gap-6">
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <a href="#how-it-works" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               How it Works
             </a>
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <a href="#about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               About FHEVM
             </a>
             <a
