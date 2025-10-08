@@ -54,7 +54,13 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
       contractAddress,
       userAddress,
       network: "sepolia",
-      relayerUrl: process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud"
+      relayerUrl: process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud",
+      // FHEVM v0.8 Sepolia contract addresses
+      aclContractAddress: "0x687820221192c5b662b25367f70076a37bc79b6c",
+      kmsContractAddress: "0x848b0066793bcc60346da1f49049357399b8d595",
+      inputVerifierContractAddress: "0xa02cda4ca3a71d7c46997716f4283aa851c28812",
+      verifyingContractAddressDecryption: "0x1364cbbf2cdf5032c47d8226a6f6fbd2afcdacac",
+      verifyingContractAddressInputVerification: "0xa02cda4ca3a71d7c46997716f4283aa851c28812"
     })
     
     // Encrypt the move
@@ -89,7 +95,13 @@ export async function decryptResult(
       contractAddress,
       userAddress,
       network: "sepolia",
-      relayerUrl: process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud"
+      relayerUrl: process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud",
+      // FHEVM v0.8 Sepolia contract addresses
+      aclContractAddress: "0x687820221192c5b662b25367f70076a37bc79b6c",
+      kmsContractAddress: "0x848b0066793bcc60346da1f49049357399b8d595",
+      inputVerifierContractAddress: "0xa02cda4ca3a71d7c46997716f4283aa851c28812",
+      verifyingContractAddressDecryption: "0x1364cbbf2cdf5032c47d8226a6f6fbd2afcdacac",
+      verifyingContractAddressInputVerification: "0xa02cda4ca3a71d7c46997716f4283aa851c28812"
     })
     
     // Decrypt the encrypted boolean result

@@ -25,7 +25,7 @@ interface Game {
 }
 
 // Contract configuration
-const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x768b885C490E94e003F6D85ae8c532ca0fcD6E9D") as `0x${string}`
+const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x2FD90120CC6fdF858063D0b773f8D7b7deE2a493") as `0x${string}`
 const CONTRACT_ABI = [
   {
     "inputs": [],
