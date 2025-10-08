@@ -3,6 +3,8 @@
  * This file contains helpers for encrypting inputs and interacting with the smart contract
  */
 
+import { initSDK, createInstance } from "@zama-fhe/relayer-sdk/web"
+
 export type Move = 0 | 1 | 2 // 0 = Rock, 1 = Paper, 2 = Scissors
 
 export const MOVE_NAMES: Record<Move, string> = {
@@ -51,8 +53,7 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     
     console.log(`[fhEVM] Encrypting move ${move} for contract ${contractAddress}`)
     
-    // Import the correct SDK functions from web version (browser-optimized)
-    const { initSDK, createInstance, SepoliaConfig } = await import("@zama-fhe/relayer-sdk/web")
+    // Use static imports to avoid circular dependency issues
     
     console.log(`[fhEVM] Initializing SDK...`)
     // CRITICAL: Initialize WASM modules first
@@ -61,19 +62,37 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     
     console.log(`[fhEVM] Creating FHEVM instance...`)
     
-    // Create FHEVM instance with Sepolia configuration
+    // Create FHEVM instance with custom configuration (no SepoliaConfig)
     const relayerUrl = process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud"
     const rpcUrl = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com"
+    console.log(`[fhEVM] Environment check:`)
+    console.log(`[fhEVM] - NEXT_PUBLIC_SEPOLIA_RPC_URL: ${process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL}`)
+    console.log(`[fhEVM] - NEXT_PUBLIC_FHEVM_RELAYER_URL: ${process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL}`)
     console.log(`[fhEVM] Using relayer URL: ${relayerUrl}`)
     console.log(`[fhEVM] Using RPC URL: ${rpcUrl}`)
-    console.log(`[fhEVM] Using SepoliaConfig:`, SepoliaConfig)
     
-    const fhevmInstance = await createInstance({
-      ...SepoliaConfig,
+    // Create a completely custom config without SepoliaConfig
+    const customConfig = {
+      chainId: 11155111, // Sepolia chain ID
+      rpcUrl: rpcUrl,
       relayerUrl: relayerUrl,
-      // Override the RPC URL to use our Infura endpoint
-      rpcUrl: rpcUrl
-    })
+      gatewayUrl: relayerUrl,
+      // Add wallet provider for EIP1193 compatibility
+      provider: typeof window !== 'undefined' && (window as any).ethereum ? (window as any).ethereum : rpcUrl,
+      // Sepolia-specific contract addresses (from SepoliaConfig)
+      aclContractAddress: '0x687820221192C5B662b25367F70076A37bc79b6c',
+      kmsContractAddress: '0x1364cBBf2cDF5032C47d8226a6f6FBD2AFCDacAC',
+      inputVerifierContractAddress: '0xbc91f3daD1A5F19F8390c400196e58073B6a0BC4',
+      verifyingContractAddressDecryption: '0xb6E160B1ff80D67Bfe90A85eE06Ce0A2613607D1',
+      verifyingContractAddressInputVerification: '0x7048C39f048125eDa9d678AEbaDfB22F7900a29F',
+      fhevmExecutorContractAddress: '0x848B0066793BcC60346Da1F49049357399B8D595',
+      hcuLimitContractAddress: '0x594BB474275918AF9609814E68C61B1587c5F838',
+      decryptionOracleContractAddress: '0xa02Cda4Ca3a71D7C46997716F4283aa851C28812'
+    }
+    
+    console.log(`[fhEVM] Custom config:`, customConfig)
+    
+    const fhevmInstance = await createInstance(customConfig)
     
     // Create encrypted input for the move
     const encryptedInput = fhevmInstance.createEncryptedInput(contractAddress, userAddress)
@@ -113,22 +132,35 @@ export async function decryptResult(
     
     console.log(`[fhEVM] Decrypting result for contract ${contractAddress}`)
     
-    // Import the correct SDK functions from web version (browser-optimized)
-    const { initSDK, createInstance, SepoliaConfig } = await import("@zama-fhe/relayer-sdk/web")
+    // Use static imports to avoid circular dependency issues
     
     // CRITICAL: Initialize WASM modules first
     await initSDK()
     
-    // Create FHEVM instance with Sepolia configuration
+    // Create FHEVM instance with custom configuration (no SepoliaConfig)
     const relayerUrl = process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud"
     const rpcUrl = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com"
     
-    const fhevmInstance = await createInstance({
-      ...SepoliaConfig,
+    // Create a completely custom config without SepoliaConfig
+    const customConfig = {
+      chainId: 11155111, // Sepolia chain ID
+      rpcUrl: rpcUrl,
       relayerUrl: relayerUrl,
-      // Override the RPC URL to use our Infura endpoint
-      rpcUrl: rpcUrl
-    })
+      gatewayUrl: relayerUrl,
+      // Add wallet provider for EIP1193 compatibility
+      provider: typeof window !== 'undefined' && (window as any).ethereum ? (window as any).ethereum : rpcUrl,
+      // Sepolia-specific contract addresses (from SepoliaConfig)
+      aclContractAddress: '0x687820221192C5B662b25367F70076A37bc79b6c',
+      kmsContractAddress: '0x1364cBBf2cDF5032C47d8226a6f6FBD2AFCDacAC',
+      inputVerifierContractAddress: '0xbc91f3daD1A5F19F8390c400196e58073B6a0BC4',
+      verifyingContractAddressDecryption: '0xb6E160B1ff80D67Bfe90A85eE06Ce0A2613607D1',
+      verifyingContractAddressInputVerification: '0x7048C39f048125eDa9d678AEbaDfB22F7900a29F',
+      fhevmExecutorContractAddress: '0x848B0066793BcC60346Da1F49049357399B8D595',
+      hcuLimitContractAddress: '0x594BB474275918AF9609814E68C61B1587c5F838',
+      decryptionOracleContractAddress: '0xa02Cda4Ca3a71D7C46997716F4283aa851C28812'
+    }
+    
+    const fhevmInstance = await createInstance(customConfig)
     
     // Use public decrypt for game results (no user signature needed for public results)
     const decryptedResults = await fhevmInstance.publicDecrypt([encryptedResult])
