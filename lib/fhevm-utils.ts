@@ -51,58 +51,30 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     
     console.log(`[fhEVM] Encrypting move ${move} for contract ${contractAddress}`)
     
-    // Try multiple import approaches for better compatibility
-    let Relayer
-    try {
-      // Approach 1: Direct import
-      const relayerModule = await import("@zama-fhe/relayer-sdk/web")
-      Relayer = relayerModule.Relayer
-      
-      if (!Relayer) {
-        // Approach 2: Try default export
-        Relayer = relayerModule.default?.Relayer || relayerModule.default
-      }
-      
-      if (!Relayer) {
-        // Approach 3: Try named export
-        Relayer = relayerModule.Relayer || relayerModule.default
-      }
-    } catch (importError) {
-      console.error("Failed to import FHEVM SDK:", importError)
-      throw new Error('Failed to import FHEVM SDK. Please ensure the package is properly installed.')
-    }
+    // Import the correct SDK functions
+    const { createInstance, SepoliaConfig } = await import("@zama-fhe/relayer-sdk/web")
     
-    // Check if Relayer is properly imported
-    if (!Relayer || typeof Relayer !== 'function') {
-      console.error("Relayer import result:", Relayer)
-      throw new Error('Failed to import Relayer from @zama-fhe/relayer-sdk')
-    }
-    
-    // Initialize the relayer with proper Sepolia configuration
-    const relayer = new Relayer({
-      contractAddress,
-      userAddress,
-      network: "sepolia",
-      relayerUrl: process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud",
-      // Complete FHEVM v0.8 Sepolia contract addresses
-      aclContractAddress: "0x687820221192C5B662b25367F70076A37bc79b6c",
-      kmsContractAddress: "0x848B0066793BcC60346Da1F49049357399B8D595",
-      inputVerifierContractAddress: "0xbc91f3daD1A5F19F8390c400196e58073B6a0BC4",
-      verifyingContractAddressDecryption: "0xb6E160B1ff80D67Bfe90A85eE06Ce0A2613607D1",
-      verifyingContractAddressInputVerification: "0x7048C39f048125eDa9d678AEbaDfB22F7900a29F",
-      // Additional required addresses
-      hcuLimitContractAddress: "0x594BB474275918AF9609814E68C61B1587c5F838",
-      decryptionOracleContractAddress: "0xa02Cda4Ca3a71D7C46997716F4283aa851C28812"
+    // Create FHEVM instance with Sepolia configuration
+    const fhevmInstance = await createInstance({
+      ...SepoliaConfig,
+      relayerUrl: process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud"
     })
     
-    // Encrypt the move
-    const encryptedMove = await relayer.encrypt8(move)
+    // Create encrypted input for the move
+    const encryptedInput = fhevmInstance.createEncryptedInput(contractAddress, userAddress)
+    
+    // Add the move (0, 1, or 2) as an 8-bit encrypted value
+    encryptedInput.add8(move)
+    
+    // Encrypt and get the result
+    const encryptionResult = await encryptedInput.encrypt()
     
     console.log(`[fhEVM] Successfully encrypted move ${move}`)
     
+    // Return the first handle and proof (since we only encrypted one value)
     return {
-      handle: encryptedMove.handle,
-      proof: encryptedMove.proof,
+      handle: encryptionResult.handles[0],
+      proof: encryptionResult.inputProof,
     }
   } catch (error) {
     console.error("Failed to encrypt with fhEVM:", error)
@@ -124,32 +96,26 @@ export async function decryptResult(
       (window as any).global = window
     }
     
-    const { Relayer } = await import("@zama-fhe/relayer-sdk/web")
-    
     console.log(`[fhEVM] Decrypting result for contract ${contractAddress}`)
     
-    const relayer = new Relayer({
-      contractAddress,
-      userAddress,
-      network: "sepolia",
-      relayerUrl: process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud",
-      // Complete FHEVM v0.8 Sepolia contract addresses
-      aclContractAddress: "0x687820221192C5B662b25367F70076A37bc79b6c",
-      kmsContractAddress: "0x848B0066793BcC60346Da1F49049357399B8D595",
-      inputVerifierContractAddress: "0xbc91f3daD1A5F19F8390c400196e58073B6a0BC4",
-      verifyingContractAddressDecryption: "0xb6E160B1ff80D67Bfe90A85eE06Ce0A2613607D1",
-      verifyingContractAddressInputVerification: "0x7048C39f048125eDa9d678AEbaDfB22F7900a29F",
-      // Additional required addresses
-      hcuLimitContractAddress: "0x594BB474275918AF9609814E68C61B1587c5F838",
-      decryptionOracleContractAddress: "0xa02Cda4Ca3a71D7C46997716F4283aa851C28812"
+    // Import the correct SDK functions
+    const { createInstance, SepoliaConfig } = await import("@zama-fhe/relayer-sdk/web")
+    
+    // Create FHEVM instance with Sepolia configuration
+    const fhevmInstance = await createInstance({
+      ...SepoliaConfig,
+      relayerUrl: process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud"
     })
     
-    // Decrypt the encrypted boolean result
-    const decryptedResult = await relayer.decryptBool(encryptedResult)
+    // Use public decrypt for game results (no user signature needed for public results)
+    const decryptedResults = await fhevmInstance.publicDecrypt([encryptedResult])
     
-    console.log(`[fhEVM] Successfully decrypted result: ${decryptedResult}`)
+    // Extract the boolean result (assuming it's the first and only result)
+    const resultValue = Object.values(decryptedResults)[0]
     
-    return decryptedResult
+    console.log(`[fhEVM] Successfully decrypted result: ${resultValue}`)
+    
+    return resultValue === "true" || resultValue === true || resultValue === 1
   } catch (error) {
     console.error("Failed to decrypt with fhEVM:", error)
     throw new Error(`FHE decryption failed: ${error}`)
