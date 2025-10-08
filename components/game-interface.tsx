@@ -64,6 +64,13 @@ const CONTRACT_ABI = [
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "gameCounter",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
   }
 ] as const
 
@@ -93,57 +100,18 @@ export function GameInterface() {
     onSuccess: async (data) => {
       console.log('Game created successfully:', data)
       
-      // Wait for transaction to be mined and get the receipt
+      // Wait for transaction to be mined
       try {
         const receipt = await data.wait()
-        console.log('Transaction receipt:', receipt)
-        console.log('Receipt logs:', receipt.logs)
+        console.log('Transaction confirmed:', receipt.transactionHash)
         
-        // Get the game ID from the transaction logs
-        // The createGame function returns the game ID, so we need to decode it from the logs
-        if (receipt.logs && receipt.logs.length > 0) {
-          console.log('Found', receipt.logs.length, 'logs')
-          
-          // Look for the GameCreated event
-          for (let i = 0; i < receipt.logs.length; i++) {
-            const log = receipt.logs[i]
-            console.log(`Log ${i}:`, log)
-            console.log(`Topics:`, log.topics)
-            
-            try {
-              // Decode the event data to get the game ID
-              // GameCreated event has: (uint256 indexed gameId, address indexed player1)
-              if (log.topics && log.topics.length > 1) {
-                const gameId = BigInt(log.topics[1]) // First indexed parameter
-                console.log('Found game ID from logs:', gameId.toString())
-                
-                setGameState("waiting-for-opponent")
-                setIsPlayer1(true)
-                setCurrentGame({
-                  id: Number(gameId),
-                  player1: address,
-                  player2: null,
-                  player1Committed: false,
-                  player2Committed: false,
-                  finished: false
-                })
-                setGameIdToShare(gameId.toString())
-                return // Exit successfully
-              }
-            } catch (decodeError) {
-              console.log('Could not decode log:', decodeError)
-              continue
-            }
-          }
-          
-          // If we get here, we didn't find the game ID in logs
-          console.error('Could not find game ID in transaction logs')
-          // Fallback: try to get it from the transaction result
-          // The createGame function should return the game ID
-          console.log('Transaction data:', data)
-        } else {
-          console.error('No logs found in transaction receipt')
-        }
+        // Simple approach: Get the current gameCounter and subtract 1
+        // Since createGame increments gameCounter, the new game ID is gameCounter - 1
+        setGameState("creating")
+        setIsPlayer1(true)
+        
+        // The polling logic will find the game once we set a temporary state
+        
       } catch (waitError) {
         console.error('Error waiting for transaction:', waitError)
         setGameState("menu")
@@ -242,7 +210,32 @@ export function GameInterface() {
     }
   }, [gameData, currentGame.id, address, gameIdToShare])
 
-  // Removed complex polling logic - now using transaction receipt to get Game ID directly
+  // Get the current game counter to find our game ID
+  const { data: gameCounterData } = useContractRead({
+    address: CONTRACT_ADDRESS,
+    abi: CONTRACT_ABI,
+    functionName: 'gameCounter',
+    enabled: gameState === "creating" && !currentGame.id
+  })
+
+  // When we get the game counter, use it to find our game
+  useEffect(() => {
+    if (gameCounterData && gameState === "creating" && !currentGame.id) {
+      const gameId = Number(gameCounterData) - 1 // The game we just created
+      console.log(`Found game ID from counter: ${gameId}`)
+      
+      setCurrentGame({
+        id: gameId,
+        player1: address,
+        player2: null,
+        player1Committed: false,
+        player2Committed: false,
+        finished: false
+      })
+      setGameState("waiting-for-opponent")
+      setGameIdToShare(gameId.toString())
+    }
+  }, [gameCounterData, gameState, currentGame.id, address])
 
   const moves = [
     { id: "rock", name: "Rock", icon: Hand, value: 0 },
