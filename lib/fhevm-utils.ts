@@ -126,26 +126,13 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
       relayerConnected = response.ok
     } catch (error) {
       console.warn(`[fhEVM] Relayer connectivity failed:`, error)
-      // Try alternative relayer URL
-      const altRelayerUrl = "https://relayer-mainnet.zama.cloud"
-      try {
-        console.log(`[fhEVM] Trying alternative relayer: ${altRelayerUrl}`)
-        const altResponse = await fetch(altRelayerUrl, { 
-          method: 'GET',
-          signal: AbortSignal.timeout(10000)
-        })
-        if (altResponse.ok) {
-          console.log(`[fhEVM] Alternative relayer connected, using: ${altRelayerUrl}`)
-          relayerUrl = altRelayerUrl
-          relayerConnected = true
-        }
-      } catch (altError) {
-        console.warn(`[fhEVM] Alternative relayer also failed:`, altError)
-      }
+      // Note: Zama doesn't have mainnet yet, so we only use testnet relayers
+      console.log(`[fhEVM] No alternative relayer available (Zama mainnet not launched yet)`)
     }
     
     if (!relayerConnected) {
-      console.warn(`[fhEVM] Warning: Relayer connectivity issues detected, but proceeding anyway`)
+      console.warn(`[fhEVM] Warning: Primary relayer connectivity failed, but proceeding with FHEVM initialization anyway`)
+      console.warn(`[fhEVM] Note: This may cause slower initialization or failures if relayer is unreachable`)
     }
     
     // Create a completely custom config without SepoliaConfig
