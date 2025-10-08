@@ -3,7 +3,7 @@
  * This file contains helpers for encrypting inputs and interacting with the smart contract
  */
 
-import { initSDK, createInstance } from "@zama-fhe/relayer-sdk/web"
+// Dynamic imports to avoid SSR issues
 
 export type Move = 0 | 1 | 2 // 0 = Rock, 1 = Paper, 2 = Scissors
 
@@ -46,14 +46,20 @@ export function moveNameToValue(name: string): Move {
  */
 export async function encryptMove(move: Move, contractAddress: string, userAddress: string) {
   try {
+    // Ensure we're in browser environment
+    if (typeof window === 'undefined') {
+      throw new Error("FHEVM encryption requires browser environment")
+    }
+    
     // Ensure global is defined for browser environment
-    if (typeof window !== 'undefined' && typeof global === 'undefined') {
+    if (typeof global === 'undefined') {
       (window as any).global = window
     }
     
     console.log(`[fhEVM] Encrypting move ${move} for contract ${contractAddress}`)
     
-    // Use static imports to avoid circular dependency issues
+    // Dynamic import to avoid SSR issues
+    const { initSDK, createInstance } = await import("@zama-fhe/relayer-sdk/web")
     
     console.log(`[fhEVM] Initializing SDK...`)
     // CRITICAL: Initialize WASM modules first
@@ -125,14 +131,20 @@ export async function decryptResult(
   userAddress: string
 ): Promise<boolean> {
   try {
+    // Ensure we're in browser environment
+    if (typeof window === 'undefined') {
+      throw new Error("FHEVM decryption requires browser environment")
+    }
+    
     // Ensure global is defined for browser environment
-    if (typeof window !== 'undefined' && typeof global === 'undefined') {
+    if (typeof global === 'undefined') {
       (window as any).global = window
     }
     
     console.log(`[fhEVM] Decrypting result for contract ${contractAddress}`)
     
-    // Use static imports to avoid circular dependency issues
+    // Dynamic import to avoid SSR issues
+    const { initSDK, createInstance } = await import("@zama-fhe/relayer-sdk/web")
     
     // CRITICAL: Initialize WASM modules first
     await initSDK()
