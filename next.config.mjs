@@ -9,23 +9,27 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Add headers for WASM and worker thread support
+  // Add headers for WASM and worker thread support (only in production)
   async headers() {
-    return [
-      {
-        source: '/(.*)',
-        headers: [
-          {
-            key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin',
-          },
-          {
-            key: 'Cross-Origin-Embedder-Policy',
-            value: 'require-corp',
-          },
-        ],
-      },
-    ]
+    // Only add COOP headers in production to avoid Coinbase Wallet conflicts
+    if (process.env.NODE_ENV === 'production') {
+      return [
+        {
+          source: '/(.*)',
+          headers: [
+            {
+              key: 'Cross-Origin-Opener-Policy',
+              value: 'same-origin',
+            },
+            {
+              key: 'Cross-Origin-Embedder-Policy',
+              value: 'require-corp',
+            },
+          ],
+        },
+      ]
+    }
+    return []
   },
   webpack: (config, { isServer, webpack }) => {
     // Fix for FHEVM SDK browser compatibility
