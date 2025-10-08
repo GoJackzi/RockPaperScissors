@@ -19,6 +19,17 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if (typeof global === 'undefined') {
+                var global = globalThis;
+              }
+            `,
+          }}
+        />
+      </head>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
         <Web3Provider>
           <ThemeProvider

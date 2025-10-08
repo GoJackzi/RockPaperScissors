@@ -40,14 +40,19 @@ export function moveNameToValue(name: string): Move {
 }
 
 /**
- * Encrypt move using @zama-fhe/relayer-sdk
+ * Encrypt move using @zama-fhe/relayer-sdk with browser compatibility
  */
 export async function encryptMove(move: Move, contractAddress: string, userAddress: string) {
   try {
-    // Import the relayer SDK dynamically to avoid issues during build
-    const { Relayer } = await import("@zama-fhe/relayer-sdk/web")
+    // Ensure global is defined for browser environment
+    if (typeof window !== 'undefined' && typeof global === 'undefined') {
+      (window as any).global = window
+    }
     
     console.log(`[fhEVM] Encrypting move ${move} for contract ${contractAddress}`)
+    
+    // Import the relayer SDK dynamically to avoid issues during build
+    const { Relayer } = await import("@zama-fhe/relayer-sdk/web")
     
     // Initialize the relayer with proper Sepolia configuration
     const relayer = new Relayer({
@@ -90,6 +95,11 @@ export async function decryptResult(
   userAddress: string
 ): Promise<boolean> {
   try {
+    // Ensure global is defined for browser environment
+    if (typeof window !== 'undefined' && typeof global === 'undefined') {
+      (window as any).global = window
+    }
+    
     const { Relayer } = await import("@zama-fhe/relayer-sdk/web")
     
     console.log(`[fhEVM] Decrypting result for contract ${contractAddress}`)

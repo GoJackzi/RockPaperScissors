@@ -596,6 +596,11 @@ export function GameInterface() {
                 <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
                 <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
               </div>
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-700">
+                  ⏱️ <strong>Note:</strong> Game ID detection may take up to 1 minute. Please be patient while the blockchain processes your transaction.
+                </p>
+              </div>
             </div>
             
             <Button onClick={resetGame} variant="outline" className="w-full">
@@ -647,21 +652,21 @@ export function GameInterface() {
               <div className="flex items-center justify-center py-8">
                 {currentGame.player1Committed ? (
                   <div className="flex flex-col items-center">
-                    <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mb-2">
-                      <svg className="w-8 h-8 text-primary" fill="currentColor" viewBox="0 0 20 20">
-                        <path
-                          fillRule="evenodd"
-                          d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </div>
-                    <p className="text-sm text-muted-foreground">Move encrypted</p>
+                  <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mb-2">
+                    <svg className="w-8 h-8 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
                   </div>
-                ) : (
+                  <p className="text-sm text-muted-foreground">Move encrypted</p>
+                </div>
+              ) : (
                   <p className="text-sm text-muted-foreground">No move yet</p>
                 )}
-              </div>
+                </div>
             </div>
 
             <div className="bg-muted/50 rounded-lg p-6 border border-border">
@@ -683,21 +688,21 @@ export function GameInterface() {
               <div className="flex items-center justify-center py-8">
                 {currentGame.player2Committed ? (
                   <div className="flex flex-col items-center">
-                    <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mb-2">
-                      <svg className="w-8 h-8 text-primary" fill="currentColor" viewBox="0 0 20 20">
-                        <path
-                          fillRule="evenodd"
-                          d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </div>
-                    <p className="text-sm text-muted-foreground">Move encrypted</p>
+                  <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mb-2">
+                    <svg className="w-8 h-8 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
                   </div>
-                ) : (
+                  <p className="text-sm text-muted-foreground">Move encrypted</p>
+                </div>
+              ) : (
                   <p className="text-sm text-muted-foreground">No move yet</p>
                 )}
-              </div>
+                </div>
             </div>
           </div>
         </CardContent>
