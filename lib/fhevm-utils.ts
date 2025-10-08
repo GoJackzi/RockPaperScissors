@@ -62,18 +62,51 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     const { initSDK, createInstance } = await import("@zama-fhe/relayer-sdk/web")
     
     console.log(`[fhEVM] Initializing SDK...`)
-    // CRITICAL: Initialize WASM modules first with timeout
-    const initPromise = initSDK()
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("SDK initialization timeout after 30 seconds")), 30000)
-    )
-    await Promise.race([initPromise, timeoutPromise])
-    console.log(`[fhEVM] SDK initialized successfully`)
+    
+    // Try multiple initialization strategies
+    let initSuccess = false
+    let lastError: Error | null = null
+    
+    // Strategy 1: Normal initialization with timeout
+    try {
+      console.log(`[fhEVM] Attempting normal initialization...`)
+      const initPromise = initSDK()
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("SDK initialization timeout after 15 seconds")), 15000)
+      )
+      await Promise.race([initPromise, timeoutPromise])
+      initSuccess = true
+      console.log(`[fhEVM] SDK initialized successfully with normal method`)
+    } catch (error) {
+      lastError = error as Error
+      console.warn(`[fhEVM] Normal initialization failed:`, error)
+    }
+    
+    // Strategy 2: Retry with longer timeout if first attempt failed
+    if (!initSuccess) {
+      try {
+        console.log(`[fhEVM] Attempting initialization with longer timeout...`)
+        const initPromise = initSDK()
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("SDK initialization timeout after 30 seconds")), 30000)
+        )
+        await Promise.race([initPromise, timeoutPromise])
+        initSuccess = true
+        console.log(`[fhEVM] SDK initialized successfully with retry method`)
+      } catch (error) {
+        lastError = error as Error
+        console.warn(`[fhEVM] Retry initialization failed:`, error)
+      }
+    }
+    
+    if (!initSuccess) {
+      throw new Error(`FHEVM SDK initialization failed after multiple attempts: ${lastError?.message}`)
+    }
     
     console.log(`[fhEVM] Creating FHEVM instance...`)
     
     // Create FHEVM instance with custom configuration (no SepoliaConfig)
-    const relayerUrl = process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud"
+    let relayerUrl = process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud"
     const rpcUrl = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com"
     console.log(`[fhEVM] Environment check:`)
     console.log(`[fhEVM] - NEXT_PUBLIC_SEPOLIA_RPC_URL: ${process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL}`)
@@ -83,14 +116,36 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     
     // Test relayer connectivity first
     console.log(`[fhEVM] Testing relayer connectivity...`)
+    let relayerConnected = false
     try {
       const response = await fetch(relayerUrl, { 
         method: 'GET',
-        signal: AbortSignal.timeout(5000) // 5 second timeout
+        signal: AbortSignal.timeout(10000) // 10 second timeout
       })
       console.log(`[fhEVM] Relayer response status: ${response.status}`)
+      relayerConnected = response.ok
     } catch (error) {
-      console.warn(`[fhEVM] Relayer connectivity warning:`, error)
+      console.warn(`[fhEVM] Relayer connectivity failed:`, error)
+      // Try alternative relayer URL
+      const altRelayerUrl = "https://relayer-mainnet.zama.cloud"
+      try {
+        console.log(`[fhEVM] Trying alternative relayer: ${altRelayerUrl}`)
+        const altResponse = await fetch(altRelayerUrl, { 
+          method: 'GET',
+          signal: AbortSignal.timeout(10000)
+        })
+        if (altResponse.ok) {
+          console.log(`[fhEVM] Alternative relayer connected, using: ${altRelayerUrl}`)
+          relayerUrl = altRelayerUrl
+          relayerConnected = true
+        }
+      } catch (altError) {
+        console.warn(`[fhEVM] Alternative relayer also failed:`, altError)
+      }
+    }
+    
+    if (!relayerConnected) {
+      console.warn(`[fhEVM] Warning: Relayer connectivity issues detected, but proceeding anyway`)
     }
     
     // Create a completely custom config without SepoliaConfig
@@ -114,12 +169,37 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     
     console.log(`[fhEVM] Custom config:`, customConfig)
     
-    // Create FHEVM instance with timeout
-    const createPromise = createInstance(customConfig)
-    const createTimeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("FHEVM instance creation timeout after 30 seconds")), 30000)
-    )
-    const fhevmInstance = await Promise.race([createPromise, createTimeoutPromise])
+    // Create FHEVM instance with retry logic
+    let fhevmInstance = null
+    let createSuccess = false
+    let createError: Error | null = null
+    
+    // Try creating instance with different timeouts
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(`[fhEVM] Creating FHEVM instance (attempt ${attempt}/3)...`)
+        const timeoutDuration = attempt === 1 ? 15000 : attempt === 2 ? 25000 : 35000
+        const createPromise = createInstance(customConfig)
+        const createTimeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error(`FHEVM instance creation timeout after ${timeoutDuration/1000} seconds`)), timeoutDuration)
+        )
+        fhevmInstance = await Promise.race([createPromise, createTimeoutPromise])
+        createSuccess = true
+        console.log(`[fhEVM] FHEVM instance created successfully on attempt ${attempt}`)
+        break
+      } catch (error) {
+        createError = error as Error
+        console.warn(`[fhEVM] Instance creation attempt ${attempt} failed:`, error)
+        if (attempt < 3) {
+          console.log(`[fhEVM] Retrying instance creation...`)
+          await new Promise(resolve => setTimeout(resolve, 2000)) // Wait 2 seconds before retry
+        }
+      }
+    }
+    
+    if (!createSuccess || !fhevmInstance) {
+      throw new Error(`FHEVM instance creation failed after multiple attempts: ${createError?.message}`)
+    }
     
     // Create encrypted input for the move
     const encryptedInput = fhevmInstance.createEncryptedInput(contractAddress, userAddress)
