@@ -89,10 +89,7 @@ export function GameInterface() {
   const [copied, setCopied] = useState(false)
 
   // Wagmi hooks for contract interactions
-  const { write: createGameWrite, isLoading: isCreatingGame, error: createGameError } = useContractWrite({
-    address: CONTRACT_ADDRESS,
-    abi: CONTRACT_ABI,
-    functionName: 'createGame',
+  const { writeContract: createGameWrite, isPending: isCreatingGame, error: createGameError } = useContractWrite({
     onSuccess: async (data) => {
       console.log('Game created successfully:', data)
       // Set up temporary state while waiting for transaction confirmation
@@ -116,10 +113,7 @@ export function GameInterface() {
     }
   })
 
-  const { write: joinGameWrite, isLoading: isJoiningGame } = useContractWrite({
-    address: CONTRACT_ADDRESS,
-    abi: CONTRACT_ABI,
-    functionName: 'joinGame',
+  const { writeContract: joinGameWrite, isPending: isJoiningGame } = useContractWrite({
     onSuccess: (data) => {
       console.log('Joined game successfully:', data)
       setGameState("waiting-for-move")
@@ -130,10 +124,7 @@ export function GameInterface() {
     }
   })
 
-  const { write: makeMoveWrite, isLoading: isSubmittingMove } = useContractWrite({
-    address: CONTRACT_ADDRESS,
-    abi: CONTRACT_ABI,
-    functionName: 'makeMove',
+  const { writeContract: makeMoveWrite, isPending: isSubmittingMove } = useContractWrite({
     onSuccess: (data) => {
       console.log('Move submitted successfully:', data)
       if (isPlayer1) {
@@ -295,7 +286,11 @@ export function GameInterface() {
     try {
       // Call smart contract to create game
       console.log('Calling createGameWrite...')
-      createGameWrite()
+      createGameWrite({
+        address: CONTRACT_ADDRESS,
+        abi: CONTRACT_ABI,
+        functionName: 'createGame'
+      })
     } catch (error) {
       console.error("Failed to create game:", error)
       setGameState("menu")
@@ -322,7 +317,12 @@ export function GameInterface() {
       setIsPlayer1(false)
       
       // Call smart contract to join game
-      joinGameWrite({ args: [BigInt(gameId)] })
+      joinGameWrite({
+        address: CONTRACT_ADDRESS,
+        abi: CONTRACT_ABI,
+        functionName: 'joinGame',
+        args: [BigInt(gameId)]
+      })
     } catch (error) {
       console.error("Failed to join game:", error)
       setGameState("menu")
@@ -343,6 +343,9 @@ export function GameInterface() {
       
       // Call smart contract to submit encrypted move
       makeMoveWrite({
+        address: CONTRACT_ADDRESS,
+        abi: CONTRACT_ABI,
+        functionName: 'makeMove',
         args: [
           BigInt(currentGame.id),
           encryptedMove.handle as `0x${string}`,
