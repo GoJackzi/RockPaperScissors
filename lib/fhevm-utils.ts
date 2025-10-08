@@ -54,9 +54,7 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
       contractAddress,
       userAddress,
       network: "sepolia",
-      gatewayUrl: process.env.NEXT_PUBLIC_FHEVM_GATEWAY_URL || "https://api.zama.ai/fhevm/gateway/sepolia",
-      chainId: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || "11155111"),
-      publicKey: process.env.NEXT_PUBLIC_FHEVM_PUBLIC_KEY || "0x01a6b73a8e7b8b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b"
+      relayerUrl: process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud"
     })
     
     // Encrypt the move
@@ -91,9 +89,7 @@ export async function decryptResult(
       contractAddress,
       userAddress,
       network: "sepolia",
-      gatewayUrl: process.env.NEXT_PUBLIC_FHEVM_GATEWAY_URL || "https://api.zama.ai/fhevm/gateway/sepolia",
-      chainId: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || "11155111"),
-      publicKey: process.env.NEXT_PUBLIC_FHEVM_PUBLIC_KEY || "0x01a6b73a8e7b8b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b"
+      relayerUrl: process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud"
     })
     
     // Decrypt the encrypted boolean result

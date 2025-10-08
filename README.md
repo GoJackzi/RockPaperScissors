@@ -201,8 +201,7 @@ NEXT_PUBLIC_CONTRACT_ADDRESS=0x4D0043ee8B496cDB6e6A6CEEcDeb8f3c55708e01
 NEXT_PUBLIC_CHAIN_ID=11155111
 
 # Official Sepolia FHEVM Configuration
-NEXT_PUBLIC_FHEVM_GATEWAY_URL=https://api.zama.ai/fhevm/gateway/sepolia
-NEXT_PUBLIC_FHEVM_PUBLIC_KEY=0x01a6b73a8e7b8b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b
+NEXT_PUBLIC_FHEVM_RELAYER_URL=https://relayer.testnet.zama.cloud
 
 # Sepolia RPC (optional)
 SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
