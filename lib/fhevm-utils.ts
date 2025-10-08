@@ -42,7 +42,7 @@ export function moveNameToValue(name: string): Move {
 }
 
 /**
- * Encrypt move using @zama-fhe/relayer-sdk with browser compatibility
+ * Encrypt move using @zama-fhe/relayer-sdk (simplified approach)
  */
 export async function encryptMove(move: Move, contractAddress: string, userAddress: string) {
   try {
@@ -51,302 +51,17 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
       throw new Error("FHEVM encryption requires browser environment")
     }
     
-    // Ensure global is defined for browser environment
-    if (typeof global === 'undefined') {
-      (window as any).global = window
-    }
-    
     console.log(`[fhEVM] Encrypting move ${move} for contract ${contractAddress}`)
     
     // Dynamic import to avoid SSR issues
-    const { initSDK, createInstance } = await import("@zama-fhe/relayer-sdk/web")
+    const { createInstance, SepoliaConfig } = await import("@zama-fhe/relayer-sdk/web")
     
     console.log(`[fhEVM] Initializing SDK...`)
     
-    // Monitor network activity during initialization
-    const networkMonitor = {
-      requests: [] as Array<{url: string, startTime: number, endTime?: number, status?: string, error?: string}>,
-      startTime: Date.now()
-    }
+    // Use SepoliaConfig directly - SDK handles WASM loading automatically
+    const fhevmInstance = await createInstance(SepoliaConfig)
     
-    // Monitor WASM loading
-    const wasmMonitor = {
-      loaded: [] as string[],
-      failed: [] as string[]
-    }
-    
-    // Hook into WebAssembly loading
-    const originalWebAssembly = window.WebAssembly
-    if (originalWebAssembly && originalWebAssembly.instantiate) {
-      const originalInstantiate = originalWebAssembly.instantiate
-      window.WebAssembly.instantiate = function(bufferSource, importObject) {
-        console.log(`[fhEVM] WASM instantiate called with buffer size: ${bufferSource.byteLength} bytes`)
-        return originalInstantiate.call(this, bufferSource, importObject)
-          .then(result => {
-            console.log(`[fhEVM] WASM instantiate successful`)
-            return result
-          })
-          .catch(error => {
-            console.error(`[fhEVM] WASM instantiate failed:`, error)
-            wasmMonitor.failed.push(`instantiate: ${error.message}`)
-            throw error
-          })
-      }
-    }
-    
-    // Hook into fetch to monitor network requests
-    const originalFetch = window.fetch
-    window.fetch = function(...args) {
-      const startTime = Date.now()
-      const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url) || 'unknown'
-      console.log(`[fhEVM] Network request started: ${url}`)
-      
-      const request = {
-        url,
-        startTime,
-        endTime: undefined,
-        status: undefined,
-        error: undefined
-      }
-      networkMonitor.requests.push(request)
-      
-      return originalFetch.apply(this, args)
-        .then(response => {
-          request.endTime = Date.now()
-          request.status = response.status.toString()
-          console.log(`[fhEVM] Network request completed: ${url} - Status: ${response.status} (${request.endTime - startTime}ms)`)
-          return response
-        })
-        .catch(error => {
-          request.endTime = Date.now()
-          request.error = error.message
-          console.error(`[fhEVM] Network request failed: ${url} - Error: ${error.message} (${request.endTime - startTime}ms)`)
-          throw error
-        })
-    }
-    
-    // Try multiple initialization strategies
-    let initSuccess = false
-    let lastError: Error | null = null
-    
-    // Strategy 1: Normal initialization with timeout
-    try {
-      console.log(`[fhEVM] Attempting normal initialization...`)
-      const initStartTime = Date.now()
-      
-      // Check browser environment before initialization
-      console.log(`[fhEVM] Browser environment check:`)
-      console.log(`[fhEVM] - window: ${typeof window}`)
-      console.log(`[fhEVM] - self: ${typeof self}`)
-      console.log(`[fhEVM] - global: ${typeof global}`)
-      console.log(`[fhEVM] - globalThis: ${typeof globalThis}`)
-      console.log(`[fhEVM] - WebAssembly: ${typeof WebAssembly}`)
-      console.log(`[fhEVM] - fetch: ${typeof fetch}`)
-      
-      // Ensure browser globals are properly set up
-      if (typeof window !== 'undefined') {
-        if (typeof window.global === 'undefined') {
-          (window as any).global = window
-          console.log(`[fhEVM] Set window.global = window`)
-        }
-        if (typeof window.self === 'undefined') {
-          (window as any).self = window
-          console.log(`[fhEVM] Set window.self = window`)
-        }
-        if (typeof globalThis.global === 'undefined') {
-          (globalThis as any).global = globalThis
-          console.log(`[fhEVM] Set globalThis.global = globalThis`)
-        }
-      }
-      
-      // Start periodic status updates
-      const statusInterval = setInterval(() => {
-        const elapsed = Date.now() - initStartTime
-        const networkCount = networkMonitor.requests.length
-        const wasmCount = wasmMonitor.loaded.length + wasmMonitor.failed.length
-        console.log(`[fhEVM] Status update after ${elapsed}ms: ${networkCount} network requests, ${wasmCount} WASM operations`)
-        
-        // Check if initSDK is actually doing anything
-        if (elapsed > 5000 && networkCount === 0 && wasmCount === 0) {
-          console.warn(`[fhEVM] WARNING: initSDK appears to be hanging - no activity detected`)
-        }
-      }, 3000) // Every 3 seconds
-      
-      console.log(`[fhEVM] Calling initSDK()...`)
-      const initPromise = initSDK()
-      console.log(`[fhEVM] initSDK() call returned, waiting for promise...`)
-      
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => {
-          clearInterval(statusInterval)
-          const elapsed = Date.now() - initStartTime
-          console.log(`[fhEVM] Init timeout after ${elapsed}ms. Network requests made:`, networkMonitor.requests.length)
-          reject(new Error("SDK initialization timeout after 15 seconds"))
-        }, 15000)
-      )
-      
-      await Promise.race([initPromise, timeoutPromise])
-      clearInterval(statusInterval)
-      initSuccess = true
-      console.log(`[fhEVM] SDK initialized successfully with normal method`)
-    } catch (error) {
-      lastError = error as Error
-      console.warn(`[fhEVM] Normal initialization failed:`, error)
-    }
-    
-    // Strategy 2: Retry with longer timeout if first attempt failed
-    if (!initSuccess) {
-      try {
-        console.log(`[fhEVM] Attempting initialization with longer timeout...`)
-        const initPromise = initSDK()
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("SDK initialization timeout after 30 seconds")), 30000)
-        )
-        await Promise.race([initPromise, timeoutPromise])
-        initSuccess = true
-        console.log(`[fhEVM] SDK initialized successfully with retry method`)
-      } catch (error) {
-        lastError = error as Error
-        console.warn(`[fhEVM] Retry initialization failed:`, error)
-      }
-    }
-    
-    if (!initSuccess) {
-      // Restore original fetch
-      window.fetch = originalFetch
-      
-      // Log comprehensive network summary
-      const totalTime = Date.now() - networkMonitor.startTime
-      console.error(`[fhEVM] SDK initialization failed after ${totalTime}ms`)
-      console.error(`[fhEVM] Network activity summary:`)
-      console.error(`[fhEVM] - Total requests made: ${networkMonitor.requests.length}`)
-      console.error(`[fhEVM] - Successful requests: ${networkMonitor.requests.filter(r => r.status && !r.error).length}`)
-      console.error(`[fhEVM] - Failed requests: ${networkMonitor.requests.filter(r => r.error).length}`)
-      console.error(`[fhEVM] - Pending requests: ${networkMonitor.requests.filter(r => !r.endTime).length}`)
-      
-      if (networkMonitor.requests.length > 0) {
-        console.error(`[fhEVM] Request details:`)
-        networkMonitor.requests.forEach((req, index) => {
-          const duration = req.endTime ? req.endTime - req.startTime : Date.now() - req.startTime
-          const status = req.status || req.error || 'PENDING'
-          console.error(`[fhEVM]   ${index + 1}. ${req.url} - ${status} (${duration}ms)`)
-        })
-      } else {
-        console.error(`[fhEVM] No network requests were made during initialization - likely WASM loading issue`)
-      }
-      
-      // Log WASM activity
-      console.error(`[fhEVM] WASM activity:`)
-      console.error(`[fhEVM] - WASM instantiate calls: ${wasmMonitor.loaded.length + wasmMonitor.failed.length}`)
-      console.error(`[fhEVM] - Successful: ${wasmMonitor.loaded.length}`)
-      console.error(`[fhEVM] - Failed: ${wasmMonitor.failed.length}`)
-      if (wasmMonitor.failed.length > 0) {
-        console.error(`[fhEVM] WASM failures:`, wasmMonitor.failed)
-      }
-      
-      throw new Error(`FHEVM SDK initialization failed after multiple attempts: ${lastError?.message}`)
-    }
-    
-    // Restore original fetch
-    window.fetch = originalFetch
-    
-    // Log successful network summary
-    const totalTime = Date.now() - networkMonitor.startTime
-    console.log(`[fhEVM] SDK initialization successful after ${totalTime}ms`)
-    console.log(`[fhEVM] Network requests made: ${networkMonitor.requests.length}`)
-    if (networkMonitor.requests.length > 0) {
-      console.log(`[fhEVM] Request summary:`)
-      networkMonitor.requests.forEach((req, index) => {
-        const duration = req.endTime ? req.endTime - req.startTime : 'PENDING'
-        const status = req.status || req.error || 'PENDING'
-        console.log(`[fhEVM]   ${index + 1}. ${req.url} - ${status} (${duration}ms)`)
-      })
-    }
-    
-    console.log(`[fhEVM] Creating FHEVM instance...`)
-    
-    // Create FHEVM instance with custom configuration (no SepoliaConfig)
-    let relayerUrl = process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud"
-    const rpcUrl = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com"
-    console.log(`[fhEVM] Environment check:`)
-    console.log(`[fhEVM] - NEXT_PUBLIC_SEPOLIA_RPC_URL: ${process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL}`)
-    console.log(`[fhEVM] - NEXT_PUBLIC_FHEVM_RELAYER_URL: ${process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL}`)
-    console.log(`[fhEVM] Using relayer URL: ${relayerUrl}`)
-    console.log(`[fhEVM] Using RPC URL: ${rpcUrl}`)
-    
-    // Test relayer connectivity first
-    console.log(`[fhEVM] Testing relayer connectivity...`)
-    let relayerConnected = false
-    try {
-      const response = await fetch(relayerUrl, { 
-        method: 'GET',
-        signal: AbortSignal.timeout(10000) // 10 second timeout
-      })
-      console.log(`[fhEVM] Relayer response status: ${response.status}`)
-      relayerConnected = response.ok
-    } catch (error) {
-      console.warn(`[fhEVM] Relayer connectivity failed:`, error)
-      // Note: Zama doesn't have mainnet yet, so we only use testnet relayers
-      console.log(`[fhEVM] No alternative relayer available (Zama mainnet not launched yet)`)
-    }
-    
-    if (!relayerConnected) {
-      console.warn(`[fhEVM] Warning: Primary relayer connectivity failed, but proceeding with FHEVM initialization anyway`)
-      console.warn(`[fhEVM] Note: This may cause slower initialization or failures if relayer is unreachable`)
-    }
-    
-    // Create a completely custom config without SepoliaConfig
-    const customConfig = {
-      chainId: 11155111, // Sepolia chain ID
-      rpcUrl: rpcUrl,
-      relayerUrl: relayerUrl,
-      gatewayUrl: relayerUrl,
-      // Add wallet provider for EIP1193 compatibility
-      provider: typeof window !== 'undefined' && (window as any).ethereum ? (window as any).ethereum : rpcUrl,
-      // Sepolia-specific contract addresses (from SepoliaConfig)
-      aclContractAddress: '0x687820221192C5B662b25367F70076A37bc79b6c',
-      kmsContractAddress: '0x1364cBBf2cDF5032C47d8226a6f6FBD2AFCDacAC',
-      inputVerifierContractAddress: '0xbc91f3daD1A5F19F8390c400196e58073B6a0BC4',
-      verifyingContractAddressDecryption: '0xb6E160B1ff80D67Bfe90A85eE06Ce0A2613607D1',
-      verifyingContractAddressInputVerification: '0x7048C39f048125eDa9d678AEbaDfB22F7900a29F',
-      fhevmExecutorContractAddress: '0x848B0066793BcC60346Da1F49049357399B8D595',
-      hcuLimitContractAddress: '0x594BB474275918AF9609814E68C61B1587c5F838',
-      decryptionOracleContractAddress: '0xa02Cda4Ca3a71D7C46997716F4283aa851C28812'
-    }
-    
-    console.log(`[fhEVM] Custom config:`, customConfig)
-    
-    // Create FHEVM instance with retry logic
-    let fhevmInstance = null
-    let createSuccess = false
-    let createError: Error | null = null
-    
-    // Try creating instance with different timeouts
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        console.log(`[fhEVM] Creating FHEVM instance (attempt ${attempt}/3)...`)
-        const timeoutDuration = attempt === 1 ? 15000 : attempt === 2 ? 25000 : 35000
-        const createPromise = createInstance(customConfig)
-        const createTimeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error(`FHEVM instance creation timeout after ${timeoutDuration/1000} seconds`)), timeoutDuration)
-        )
-        fhevmInstance = await Promise.race([createPromise, createTimeoutPromise])
-        createSuccess = true
-        console.log(`[fhEVM] FHEVM instance created successfully on attempt ${attempt}`)
-        break
-      } catch (error) {
-        createError = error as Error
-        console.warn(`[fhEVM] Instance creation attempt ${attempt} failed:`, error)
-        if (attempt < 3) {
-          console.log(`[fhEVM] Retrying instance creation...`)
-          await new Promise(resolve => setTimeout(resolve, 2000)) // Wait 2 seconds before retry
-        }
-      }
-    }
-    
-    if (!createSuccess || !fhevmInstance) {
-      throw new Error(`FHEVM instance creation failed after multiple attempts: ${createError?.message}`)
-    }
+    console.log(`[fhEVM] SDK initialized successfully ✅`)
     
     // Create encrypted input for the move
     const encryptedInput = fhevmInstance.createEncryptedInput(contractAddress, userAddress)
@@ -371,7 +86,7 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
 }
 
 /**
- * Decrypt result using @zama-fhe/relayer-sdk
+ * Decrypt result using @zama-fhe/relayer-sdk (simplified approach)
  */
 export async function decryptResult(
   encryptedResult: any, 
@@ -384,43 +99,13 @@ export async function decryptResult(
       throw new Error("FHEVM decryption requires browser environment")
     }
     
-    // Ensure global is defined for browser environment
-    if (typeof global === 'undefined') {
-      (window as any).global = window
-    }
-    
     console.log(`[fhEVM] Decrypting result for contract ${contractAddress}`)
     
     // Dynamic import to avoid SSR issues
-    const { initSDK, createInstance } = await import("@zama-fhe/relayer-sdk/web")
+    const { createInstance, SepoliaConfig } = await import("@zama-fhe/relayer-sdk/web")
     
-    // CRITICAL: Initialize WASM modules first
-    await initSDK()
-    
-    // Create FHEVM instance with custom configuration (no SepoliaConfig)
-    const relayerUrl = process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud"
-    const rpcUrl = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com"
-    
-    // Create a completely custom config without SepoliaConfig
-    const customConfig = {
-      chainId: 11155111, // Sepolia chain ID
-      rpcUrl: rpcUrl,
-      relayerUrl: relayerUrl,
-      gatewayUrl: relayerUrl,
-      // Add wallet provider for EIP1193 compatibility
-      provider: typeof window !== 'undefined' && (window as any).ethereum ? (window as any).ethereum : rpcUrl,
-      // Sepolia-specific contract addresses (from SepoliaConfig)
-      aclContractAddress: '0x687820221192C5B662b25367F70076A37bc79b6c',
-      kmsContractAddress: '0x1364cBBf2cDF5032C47d8226a6f6FBD2AFCDacAC',
-      inputVerifierContractAddress: '0xbc91f3daD1A5F19F8390c400196e58073B6a0BC4',
-      verifyingContractAddressDecryption: '0xb6E160B1ff80D67Bfe90A85eE06Ce0A2613607D1',
-      verifyingContractAddressInputVerification: '0x7048C39f048125eDa9d678AEbaDfB22F7900a29F',
-      fhevmExecutorContractAddress: '0x848B0066793BcC60346Da1F49049357399B8D595',
-      hcuLimitContractAddress: '0x594BB474275918AF9609814E68C61B1587c5F838',
-      decryptionOracleContractAddress: '0xa02Cda4Ca3a71D7C46997716F4283aa851C28812'
-    }
-    
-    const fhevmInstance = await createInstance(customConfig)
+    // Use SepoliaConfig directly - SDK handles WASM loading automatically
+    const fhevmInstance = await createInstance(SepoliaConfig)
     
     // Use public decrypt for game results (no user signature needed for public results)
     const decryptedResults = await fhevmInstance.publicDecrypt([encryptedResult])
