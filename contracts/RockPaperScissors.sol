@@ -102,7 +102,7 @@ contract RockPaperScissors is SepoliaConfig {
     /// @notice Determine the winner using FHE operations
     /// @param gameId The ID of the game
     /// @return winner The address of the winner (or address(0) for draw)
-    function determineWinner(uint256 gameId) external view returns (address) {
+    function determineWinner(uint256 gameId) external returns (address) {
         Game storage game = games[gameId];
         require(game.gameFinished, "Game not finished yet");
         
@@ -141,7 +141,7 @@ contract RockPaperScissors is SepoliaConfig {
     /// @notice Get encrypted move for a player (only callable by that player)
     /// @param gameId The ID of the game
     /// @return The encrypted move
-    function getMyMove(uint256 gameId) external view returns (euint8) {
+    function getMyMove(uint256 gameId) external returns (euint8) {
         Game storage game = games[gameId];
         require(
             msg.sender == game.player1 || msg.sender == game.player2,

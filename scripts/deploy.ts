@@ -1,16 +1,16 @@
-import { ethers } from "hardhat"
+import hre from "hardhat"
 
 async function main() {
   console.log("Deploying RockPaperScissors contract to Sepolia...")
 
-  const [deployer] = await ethers.getSigners()
+  const [deployer] = await hre.ethers.getSigners()
   console.log("Deploying with account:", deployer.address)
 
-  const balance = await ethers.provider.getBalance(deployer.address)
-  console.log("Account balance:", ethers.formatEther(balance), "ETH")
+  const balance = await hre.ethers.provider.getBalance(deployer.address)
+  console.log("Account balance:", hre.ethers.formatEther(balance), "ETH")
 
   // Deploy the contract
-  const RockPaperScissors = await ethers.getContractFactory("RockPaperScissors")
+  const RockPaperScissors = await hre.ethers.getContractFactory("RockPaperScissors")
   const rps = await RockPaperScissors.deploy()
 
   await rps.waitForDeployment()
