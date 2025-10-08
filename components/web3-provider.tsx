@@ -9,7 +9,7 @@ import "@rainbow-me/rainbowkit/styles.css"
 
 const config = getDefaultConfig({
   appName: "Encrypted Rock Paper Scissors",
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "demo-project-id",
+  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "d1c3e2e49706048e1359fb9c3c1f5474",
   chains: [sepolia],
   ssr: false,
   // Suppress WalletConnect warnings
