@@ -98,7 +98,7 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     const originalFetch = window.fetch
     window.fetch = function(...args) {
       const startTime = Date.now()
-      const url = typeof args[0] === 'string' ? args[0] : args[0].url
+      const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url) || 'unknown'
       console.log(`[fhEVM] Network request started: ${url}`)
       
       const request = {
@@ -134,15 +134,48 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
       console.log(`[fhEVM] Attempting normal initialization...`)
       const initStartTime = Date.now()
       
+      // Check browser environment before initialization
+      console.log(`[fhEVM] Browser environment check:`)
+      console.log(`[fhEVM] - window: ${typeof window}`)
+      console.log(`[fhEVM] - self: ${typeof self}`)
+      console.log(`[fhEVM] - global: ${typeof global}`)
+      console.log(`[fhEVM] - globalThis: ${typeof globalThis}`)
+      console.log(`[fhEVM] - WebAssembly: ${typeof WebAssembly}`)
+      console.log(`[fhEVM] - fetch: ${typeof fetch}`)
+      
+      // Ensure browser globals are properly set up
+      if (typeof window !== 'undefined') {
+        if (typeof window.global === 'undefined') {
+          (window as any).global = window
+          console.log(`[fhEVM] Set window.global = window`)
+        }
+        if (typeof window.self === 'undefined') {
+          (window as any).self = window
+          console.log(`[fhEVM] Set window.self = window`)
+        }
+        if (typeof globalThis.global === 'undefined') {
+          (globalThis as any).global = globalThis
+          console.log(`[fhEVM] Set globalThis.global = globalThis`)
+        }
+      }
+      
       // Start periodic status updates
       const statusInterval = setInterval(() => {
         const elapsed = Date.now() - initStartTime
         const networkCount = networkMonitor.requests.length
         const wasmCount = wasmMonitor.loaded.length + wasmMonitor.failed.length
         console.log(`[fhEVM] Status update after ${elapsed}ms: ${networkCount} network requests, ${wasmCount} WASM operations`)
+        
+        // Check if initSDK is actually doing anything
+        if (elapsed > 5000 && networkCount === 0 && wasmCount === 0) {
+          console.warn(`[fhEVM] WARNING: initSDK appears to be hanging - no activity detected`)
+        }
       }, 3000) // Every 3 seconds
       
+      console.log(`[fhEVM] Calling initSDK()...`)
       const initPromise = initSDK()
+      console.log(`[fhEVM] initSDK() call returned, waiting for promise...`)
+      
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => {
           clearInterval(statusInterval)
