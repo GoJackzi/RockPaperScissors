@@ -1,141 +1,66 @@
-# 🔐 FHEVM Rock-Paper-Scissors
+# Encrypted Rock Paper Scissors with fhEVM
 
-A fully functional Rock-Paper-Scissors game built with **Zama's FHEVM (Fully Homomorphic Encryption Virtual Machine)** technology. This project demonstrates encrypted computations on the blockchain, where player moves remain private until game completion.
+A privacy-preserving Rock Paper Scissors game built with Zama's fhEVM (Fully Homomorphic Encryption Virtual Machine) technology.
 
-## 🎮 Live Demo
+## Features
 
-- **Frontend**: [Deployed on Vercel](https://your-app.vercel.app) (Coming Soon)
-- **Contract**: Sepolia Testnet (Deploy to get address)
-- **Network**: Sepolia Testnet
+- **Complete Privacy**: Player moves are encrypted using FHE and remain confidential until both players commit
+- **Provably Fair**: Zero-knowledge proofs ensure moves are valid without revealing them early
+- **On-Chain Logic**: All game logic runs on-chain with encrypted computation
+- **Modern UI**: Clean, crypto-native interface built with Next.js and Tailwind CSS
 
-## ✨ Features
+## How It Works
 
-- 🔐 **Fully Homomorphic Encryption**: Player moves are encrypted and computed on-chain
-- 🎯 **Real-time Gameplay**: Create and join games instantly
-- 🔒 **Privacy Preserving**: Moves remain hidden until game completion
-- 🌐 **Web3 Integration**: MetaMask wallet connection
-- 📱 **Responsive Design**: Works on desktop and mobile with Zama's yellow theme
-- ⚡ **Sepolia Testnet**: Live on Ethereum testnet
+1. **Player 1 Creates Game**: A new game is created on-chain
+2. **Player 2 Joins**: Second player joins the game
+3. **Encrypted Moves**: Both players submit their moves (rock/paper/scissors) encrypted using FHE
+4. **On-Chain Computation**: The smart contract determines the winner using FHE operations without decrypting the moves
+5. **Result Reveal**: Winner is determined and revealed to both players
 
-## 🏗️ Architecture
+## Technology Stack
 
-### Smart Contract
-- **Language**: Solidity 0.8.27
-- **Framework**: Hardhat with FHEVM plugin
-- **Network**: Sepolia Testnet
-- **FHEVM Version**: v0.8
+- **Frontend**: Next.js 15, React, TypeScript, Tailwind CSS
+- **Smart Contracts**: Solidity with fhEVM v0.8
 - **Encryption**: Zama's Fully Homomorphic Encryption
+- **Blockchain**: Ethereum (Sepolia testnet)
 
-### Frontend
-- **Framework**: Next.js 15 with TypeScript
-- **Styling**: Tailwind CSS v4 with Zama yellow theme
-- **Web3**: fhevmjs, viem, wagmi
-- **UI Components**: shadcn/ui
-- **Deployment**: Vercel
+## Smart Contract
 
-## 🚀 Quick Start
+The `RockPaperScissors.sol` contract uses fhEVM's encrypted types:
+
+- `euint8` for encrypted moves (0=rock, 1=paper, 2=scissors)
+- `externalEuint8` for accepting encrypted inputs from users
+- FHE operations (`FHE.eq`, `FHE.and`, `FHE.or`) for determining winners
+- Zero-knowledge proofs for input validation
+
+## Development
 
 ### Prerequisites
-- Node.js 18+ 
-- MetaMask wallet
-- Sepolia ETH (for gas fees)
 
-### Installation
+- Node.js 18+ (LTS version)
+- Hardhat for smart contract development
+- MetaMask or similar Web3 wallet
 
-1. **Clone the repository**
-   \`\`\`bash
-   git clone https://github.com/yourusername/fhevm-rock-paper-scissors.git
-   cd fhevm-rock-paper-scissors
-   \`\`\`
+### Setup
 
-2. **Install dependencies**
-   \`\`\`bash
-   npm install
-   \`\`\`
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Set up Hardhat configuration variables (see fhEVM docs)
+4. Deploy the smart contract to Sepolia testnet
+5. Update contract address in the frontend
+6. Run the development server: `npm run dev`
 
-3. **Set up environment variables**
-   \`\`\`bash
-   # Create .env file
-   cp .env.example .env
-   
-   # Add your Sepolia RPC URL
-   SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_INFURA_KEY
-   PRIVATE_KEY=your_private_key_here
-   \`\`\`
+## fhEVM Integration
 
-4. **Deploy the smart contract**
-   \`\`\`bash
-   npm run deploy:contract
-   \`\`\`
+This project uses Zama's fhEVM library for Fully Homomorphic Encryption:
 
-5. **Run the development server**
-   \`\`\`bash
-   npm run dev
-   \`\`\`
+- Encrypted types: `euint8`, `ebool`
+- FHE operations for private computation
+- Access control for encrypted data
+- Zero-knowledge proofs for input validation
 
-6. **Open your browser**
-   Navigate to [http://localhost:3000](http://localhost:3000)
+For more information, visit [Zama's documentation](https://docs.zama.ai).
 
-## 🔧 Configuration
+## License
 
-### Environment Variables
-
-Create a `.env` file in the root directory:
-
-\`\`\`bash
-# Blockchain Configuration
-SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_INFURA_KEY
-PRIVATE_KEY=your_private_key_here
-
-# Frontend Configuration (optional)
-NEXT_PUBLIC_CONTRACT_ADDRESS=deployed_contract_address
-NEXT_PUBLIC_NETWORK=sepolia
-NEXT_PUBLIC_CHAIN_ID=11155111
-\`\`\`
-
-### Contract Configuration
-
-After deployment, update the contract address in your frontend configuration.
-
-## 🎯 How It Works
-
-### Game Flow
-
-1. **Create Game**: Player 1 creates a new game and receives a game ID
-2. **Join Game**: Player 2 joins using the game ID
-3. **Submit Encrypted Moves**: Both players submit their moves (rock/paper/scissors) encrypted using FHEVM
-4. **Compute Result**: FHEVM computes the winner using homomorphic operations without revealing moves
-5. **Reveal Result**: Game result is determined and displayed to both players
-
-### FHEVM Integration
-
-The game leverages Zama's FHEVM for privacy-preserving gameplay:
-
-- **Encrypted Move Storage**: Player moves are stored as `euint8` (encrypted uint8)
-  - 0 = Rock
-  - 1 = Paper
-  - 2 = Scissors
-- **Homomorphic Operations**: Winner computation using `FHE.eq`, `FHE.and`, `FHE.or`, `FHE.select`
-- **Privacy Preservation**: Moves remain encrypted throughout the game lifecycle
-- **Zero-Knowledge Proofs**: Input validation without revealing the actual move
-
-### Smart Contract Functions
-
-```solidity
-// Create a new game
-function createGame() external returns (uint256 gameId)
-
-// Join an existing game
-function joinGame(uint256 gameId) external
-
-// Submit encrypted move with ZK proof
-function submitMove(
-    uint256 gameId, 
-    inEuint8 calldata encryptedMove
-) external
-
-// Determine winner (called after both moves submitted)
-function determineWinner(uint256 gameId) external
-
-// Get game state
-function getGameState(uint256 gameId) external view returns (GameState)
+MIT
