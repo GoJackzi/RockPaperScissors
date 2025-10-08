@@ -9,7 +9,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, webpack }) => {
     // Fix for FHEVM SDK browser compatibility
     if (!isServer) {
       config.resolve.fallback = {
@@ -30,7 +30,7 @@ const nextConfig = {
       
       // Define global for browser environment
       config.plugins.push(
-        new config.webpack.DefinePlugin({
+        new webpack.DefinePlugin({
           global: 'globalThis',
         })
       )
