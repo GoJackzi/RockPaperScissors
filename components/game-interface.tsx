@@ -97,35 +97,52 @@ export function GameInterface() {
       try {
         const receipt = await data.wait()
         console.log('Transaction receipt:', receipt)
+        console.log('Receipt logs:', receipt.logs)
         
         // Get the game ID from the transaction logs
         // The createGame function returns the game ID, so we need to decode it from the logs
         if (receipt.logs && receipt.logs.length > 0) {
+          console.log('Found', receipt.logs.length, 'logs')
+          
           // Look for the GameCreated event
-          for (const log of receipt.logs) {
+          for (let i = 0; i < receipt.logs.length; i++) {
+            const log = receipt.logs[i]
+            console.log(`Log ${i}:`, log)
+            console.log(`Topics:`, log.topics)
+            
             try {
               // Decode the event data to get the game ID
               // GameCreated event has: (uint256 indexed gameId, address indexed player1)
-              const gameId = BigInt(log.topics[1]) // First indexed parameter
-              console.log('Found game ID from logs:', gameId.toString())
-              
-              setGameState("waiting-for-opponent")
-              setIsPlayer1(true)
-              setCurrentGame({
-                id: Number(gameId),
-                player1: address,
-                player2: null,
-                player1Committed: false,
-                player2Committed: false,
-                finished: false
-              })
-              setGameIdToShare(gameId.toString())
-              break
+              if (log.topics && log.topics.length > 1) {
+                const gameId = BigInt(log.topics[1]) // First indexed parameter
+                console.log('Found game ID from logs:', gameId.toString())
+                
+                setGameState("waiting-for-opponent")
+                setIsPlayer1(true)
+                setCurrentGame({
+                  id: Number(gameId),
+                  player1: address,
+                  player2: null,
+                  player1Committed: false,
+                  player2Committed: false,
+                  finished: false
+                })
+                setGameIdToShare(gameId.toString())
+                return // Exit successfully
+              }
             } catch (decodeError) {
               console.log('Could not decode log:', decodeError)
               continue
             }
           }
+          
+          // If we get here, we didn't find the game ID in logs
+          console.error('Could not find game ID in transaction logs')
+          // Fallback: try to get it from the transaction result
+          // The createGame function should return the game ID
+          console.log('Transaction data:', data)
+        } else {
+          console.error('No logs found in transaction receipt')
         }
       } catch (waitError) {
         console.error('Error waiting for transaction:', waitError)
@@ -173,10 +190,24 @@ export function GameInterface() {
     functionName: 'getGame',
     args: currentGame.id ? [BigInt(currentGame.id)] : undefined,
     enabled: !!currentGame.id,
-    watch: true, // Auto-refresh every block
-    onSuccess: (data) => {
-      if (data && currentGame.id) {
-        const [player1, player2, player1Committed, player2Committed, finished] = data
+    watch: true // Auto-refresh every block
+  })
+
+  // Handle game data updates without causing infinite loops
+  useEffect(() => {
+    if (gameData && currentGame.id) {
+      const [player1, player2, player1Committed, player2Committed, finished] = gameData
+      
+      // Only update if data has actually changed
+      const hasChanged = (
+        currentGame.player1 !== player1 ||
+        currentGame.player2 !== player2 ||
+        currentGame.player1Committed !== player1Committed ||
+        currentGame.player2Committed !== player2Committed ||
+        currentGame.finished !== finished
+      )
+
+      if (hasChanged) {
         setCurrentGame(prev => ({
           ...prev,
           player1: player1,
@@ -209,7 +240,7 @@ export function GameInterface() {
         }
       }
     }
-  })
+  }, [gameData, currentGame.id, address, gameIdToShare])
 
   // Removed complex polling logic - now using transaction receipt to get Game ID directly
 
