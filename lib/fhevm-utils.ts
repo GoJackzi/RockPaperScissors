@@ -55,12 +55,15 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
       userAddress,
       network: "sepolia",
       relayerUrl: process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud",
-      // FHEVM v0.8 Sepolia contract addresses
-      aclContractAddress: "0x687820221192c5b662b25367f70076a37bc79b6c",
-      kmsContractAddress: "0x848b0066793bcc60346da1f49049357399b8d595",
-      inputVerifierContractAddress: "0xa02cda4ca3a71d7c46997716f4283aa851c28812",
-      verifyingContractAddressDecryption: "0x1364cbbf2cdf5032c47d8226a6f6fbd2afcdacac",
-      verifyingContractAddressInputVerification: "0xa02cda4ca3a71d7c46997716f4283aa851c28812"
+      // Complete FHEVM v0.8 Sepolia contract addresses
+      aclContractAddress: "0x687820221192C5B662b25367F70076A37bc79b6c",
+      kmsContractAddress: "0x848B0066793BcC60346Da1F49049357399B8D595",
+      inputVerifierContractAddress: "0xbc91f3daD1A5F19F8390c400196e58073B6a0BC4",
+      verifyingContractAddressDecryption: "0xb6E160B1ff80D67Bfe90A85eE06Ce0A2613607D1",
+      verifyingContractAddressInputVerification: "0x7048C39f048125eDa9d678AEbaDfB22F7900a29F",
+      // Additional required addresses
+      hcuLimitContractAddress: "0x594BB474275918AF9609814E68C61B1587c5F838",
+      decryptionOracleContractAddress: "0xa02Cda4Ca3a71D7C46997716F4283aa851C28812"
     })
     
     // Encrypt the move
@@ -96,12 +99,15 @@ export async function decryptResult(
       userAddress,
       network: "sepolia",
       relayerUrl: process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud",
-      // FHEVM v0.8 Sepolia contract addresses
-      aclContractAddress: "0x687820221192c5b662b25367f70076a37bc79b6c",
-      kmsContractAddress: "0x848b0066793bcc60346da1f49049357399b8d595",
-      inputVerifierContractAddress: "0xa02cda4ca3a71d7c46997716f4283aa851c28812",
-      verifyingContractAddressDecryption: "0x1364cbbf2cdf5032c47d8226a6f6fbd2afcdacac",
-      verifyingContractAddressInputVerification: "0xa02cda4ca3a71d7c46997716f4283aa851c28812"
+      // Complete FHEVM v0.8 Sepolia contract addresses
+      aclContractAddress: "0x687820221192C5B662b25367F70076A37bc79b6c",
+      kmsContractAddress: "0x848B0066793BcC60346Da1F49049357399B8D595",
+      inputVerifierContractAddress: "0xbc91f3daD1A5F19F8390c400196e58073B6a0BC4",
+      verifyingContractAddressDecryption: "0xb6E160B1ff80D67Bfe90A85eE06Ce0A2613607D1",
+      verifyingContractAddressInputVerification: "0x7048C39f048125eDa9d678AEbaDfB22F7900a29F",
+      // Additional required addresses
+      hcuLimitContractAddress: "0x594BB474275918AF9609814E68C61B1587c5F838",
+      decryptionOracleContractAddress: "0xa02Cda4Ca3a71D7C46997716F4283aa851C28812"
     })
     
     // Decrypt the encrypted boolean result

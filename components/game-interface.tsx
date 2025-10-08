@@ -278,15 +278,23 @@ export function GameInterface() {
   }, [isConnected])
 
   const handleCreateGame = async () => {
-    if (!address) return
-    
-    console.log('Creating game with address:', address)
+    console.log('=== CREATE GAME DEBUG ===')
+    console.log('Address:', address)
+    console.log('Is Connected:', isConnected)
     console.log('Contract address:', CONTRACT_ADDRESS)
     console.log('Chain ID:', process.env.NEXT_PUBLIC_CHAIN_ID)
+    console.log('Game State:', gameState)
+    
+    if (!address) {
+      console.error('No address available!')
+      alert('No wallet address found. Please connect your wallet.')
+      return
+    }
     
     setGameState("creating")
     try {
       // Call smart contract to create game
+      console.log('Calling createGameWrite...')
       createGameWrite()
     } catch (error) {
       console.error("Failed to create game:", error)
@@ -419,7 +427,10 @@ export function GameInterface() {
                   Start a new game and share the Game ID with your opponent
                 </p>
                 <Button 
-                  onClick={handleCreateGame} 
+                  onClick={() => {
+                    console.log('Button clicked!')
+                    handleCreateGame()
+                  }} 
                   className="w-full" 
                   size="lg"
                   disabled={isCreatingGame}
