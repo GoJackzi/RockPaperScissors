@@ -51,8 +51,32 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     
     console.log(`[fhEVM] Encrypting move ${move} for contract ${contractAddress}`)
     
-    // Import the relayer SDK dynamically to avoid issues during build
-    const { Relayer } = await import("@zama-fhe/relayer-sdk/web")
+    // Try multiple import approaches for better compatibility
+    let Relayer
+    try {
+      // Approach 1: Direct import
+      const relayerModule = await import("@zama-fhe/relayer-sdk/web")
+      Relayer = relayerModule.Relayer
+      
+      if (!Relayer) {
+        // Approach 2: Try default export
+        Relayer = relayerModule.default?.Relayer || relayerModule.default
+      }
+      
+      if (!Relayer) {
+        // Approach 3: Try named export
+        Relayer = relayerModule.Relayer || relayerModule.default
+      }
+    } catch (importError) {
+      console.error("Failed to import FHEVM SDK:", importError)
+      throw new Error('Failed to import FHEVM SDK. Please ensure the package is properly installed.')
+    }
+    
+    // Check if Relayer is properly imported
+    if (!Relayer || typeof Relayer !== 'function') {
+      console.error("Relayer import result:", Relayer)
+      throw new Error('Failed to import Relayer from @zama-fhe/relayer-sdk')
+    }
     
     // Initialize the relayer with proper Sepolia configuration
     const relayer = new Relayer({

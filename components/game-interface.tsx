@@ -596,16 +596,39 @@ export function GameInterface() {
                 <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
                 <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
               </div>
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-xs text-blue-700">
-                  ⏱️ <strong>Note:</strong> Game ID detection may take up to 1 minute. Please be patient while the blockchain processes your transaction.
-                </p>
-              </div>
             </div>
             
             <Button onClick={resetGame} variant="outline" className="w-full">
               Cancel Game
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Show creating state with notification
+  if (gameState === "creating") {
+    return (
+      <Card className="border-2">
+        <CardHeader>
+          <CardTitle>Creating Game...</CardTitle>
+          <CardDescription>
+            Please wait while we create your game on the blockchain
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center space-y-4">
+            <div className="flex items-center justify-center gap-2">
+              <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+              <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+              <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+            </div>
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-xs text-blue-700">
+                ⏱️ <strong>Note:</strong> Game ID detection may take up to 1 minute. Please be patient while the blockchain processes your transaction.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -626,9 +649,6 @@ export function GameInterface() {
                 {gameState === "waiting-for-result" && "Waiting for opponent's move..."}
               </CardDescription>
             </div>
-            <Badge variant="secondary">
-              {isPlayer1 ? "Player 1" : "Player 2"}
-            </Badge>
           </div>
         </CardHeader>
         <CardContent>
