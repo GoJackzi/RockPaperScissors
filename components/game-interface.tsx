@@ -140,29 +140,27 @@ export function GameInterface() {
         const receipt = await data.wait()
         console.log('Transaction confirmed:', receipt.transactionHash)
         
-        // Simple approach: Get the current gameCounter and subtract 1
-        // Since createGame increments gameCounter, the new game ID is gameCounter - 1
-        setGameState("creating")
+        // The polling logic will detect the new game via gameCounter
         setIsPlayer1(true)
-        
-        // The polling logic will find the game once we set a temporary state
         
       } catch (waitError) {
         console.error('Error waiting for transaction:', waitError)
         setGameState("menu")
+        setWaitingForGameCreation(false)
       }
     },
     onError: (error) => {
       console.error('Failed to create game:', error)
       console.error('Create game error details:', createGameError)
       setGameState("menu")
+      setWaitingForGameCreation(false)
     }
   })
 
   const { writeContract: joinGameWrite, isPending: isJoiningGame } = useContractWrite({
     onSuccess: (data) => {
       console.log('Joined game successfully:', data)
-      setGameState("waiting-for-move")
+      // Don't set game state here - let the contract polling handle it
     },
     onError: (error) => {
       console.error('Failed to join game:', error)
@@ -261,32 +259,49 @@ export function GameInterface() {
     }
   }, [gameData, currentGame.id, address, gameIdToShare])
 
+  // Track if we're waiting for a game to be created
+  const [waitingForGameCreation, setWaitingForGameCreation] = useState(false)
+  const [lastGameCounter, setLastGameCounter] = useState<number | null>(null)
+
   // Get the current game counter to find our game ID
   const { data: gameCounterData } = useContractRead({
     address: CONTRACT_ADDRESS,
     abi: CONTRACT_ABI,
     functionName: 'gameCounter',
-    enabled: gameState === "creating" && !currentGame.id
+    enabled: waitingForGameCreation,
+    watch: true
   })
 
   // When we get the game counter, use it to find our game
   useEffect(() => {
-    if (gameCounterData && gameState === "creating" && !currentGame.id) {
-      const gameId = Number(gameCounterData) - 1 // The game we just created
-      console.log(`Found game ID from counter: ${gameId}`)
+    if (gameCounterData && waitingForGameCreation) {
+      const currentCounter = Number(gameCounterData)
       
-      setCurrentGame({
-        id: gameId,
-        player1: address,
-        player2: null,
-        player1Committed: false,
-        player2Committed: false,
-        finished: false
-      })
-      setGameState("waiting-for-opponent")
-      setGameIdToShare(gameId.toString())
+      // If counter increased, we found our new game
+      if (lastGameCounter !== null && currentCounter > lastGameCounter) {
+        const gameId = currentCounter - 1 // The game we just created
+        console.log(`Found new game ID: ${gameId}`)
+        
+        setCurrentGame({
+          id: gameId,
+          player1: address,
+          player2: null,
+          player1Committed: false,
+          player2Committed: false,
+          status: 0,
+          resultsDecrypted: false,
+          finished: false
+        })
+        setGameState("waiting-for-opponent")
+        setGameIdToShare(gameId.toString())
+        setWaitingForGameCreation(false)
+        setLastGameCounter(null)
+      } else if (lastGameCounter === null) {
+        // First time, just record the current counter
+        setLastGameCounter(currentCounter)
+      }
     }
-  }, [gameCounterData, gameState, currentGame.id, address])
+  }, [gameCounterData, waitingForGameCreation, lastGameCounter, address])
 
   const moves = [
     { id: "rock", name: "Rock", icon: Hand, value: 0 },
@@ -317,7 +332,16 @@ export function GameInterface() {
       return
     }
     
+    // Check if we already have a game in progress
+    if (currentGame.id !== null && gameState !== "menu") {
+      console.log("Game already in progress, showing existing game")
+      return
+    }
+    
     setGameState("creating")
+    setWaitingForGameCreation(true)
+    setLastGameCounter(null)
+    
     try {
       // Call smart contract to create game
       createGameWrite({
@@ -328,6 +352,7 @@ export function GameInterface() {
     } catch (error) {
       console.error("Failed to create game:", error)
       setGameState("menu")
+      setWaitingForGameCreation(false)
     }
   }
 
@@ -345,6 +370,8 @@ export function GameInterface() {
         player2: address,
         player1Committed: false,
         player2Committed: false,
+        status: 0,
+        resultsDecrypted: false,
         finished: false
       })
       
@@ -424,12 +451,16 @@ export function GameInterface() {
       player2: null,
       player1Committed: false,
       player2Committed: false,
+      status: 0,
+      resultsDecrypted: false,
       finished: false
     })
     setGameIdToShare("")
     setGameIdInput("")
     setSelectedMove(null)
     setIsPlayer1(false)
+    setWaitingForGameCreation(false)
+    setLastGameCounter(null)
   }
 
   const getMoveIcon = (move: Move) => {
