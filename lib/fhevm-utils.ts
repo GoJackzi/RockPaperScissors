@@ -63,6 +63,68 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     
     console.log(`[fhEVM] Initializing SDK...`)
     
+    // Monitor network activity during initialization
+    const networkMonitor = {
+      requests: [] as Array<{url: string, startTime: number, endTime?: number, status?: string, error?: string}>,
+      startTime: Date.now()
+    }
+    
+    // Monitor WASM loading
+    const wasmMonitor = {
+      loaded: [] as string[],
+      failed: [] as string[]
+    }
+    
+    // Hook into WebAssembly loading
+    const originalWebAssembly = window.WebAssembly
+    if (originalWebAssembly && originalWebAssembly.instantiate) {
+      const originalInstantiate = originalWebAssembly.instantiate
+      window.WebAssembly.instantiate = function(bufferSource, importObject) {
+        console.log(`[fhEVM] WASM instantiate called with buffer size: ${bufferSource.byteLength} bytes`)
+        return originalInstantiate.call(this, bufferSource, importObject)
+          .then(result => {
+            console.log(`[fhEVM] WASM instantiate successful`)
+            return result
+          })
+          .catch(error => {
+            console.error(`[fhEVM] WASM instantiate failed:`, error)
+            wasmMonitor.failed.push(`instantiate: ${error.message}`)
+            throw error
+          })
+      }
+    }
+    
+    // Hook into fetch to monitor network requests
+    const originalFetch = window.fetch
+    window.fetch = function(...args) {
+      const startTime = Date.now()
+      const url = typeof args[0] === 'string' ? args[0] : args[0].url
+      console.log(`[fhEVM] Network request started: ${url}`)
+      
+      const request = {
+        url,
+        startTime,
+        endTime: undefined,
+        status: undefined,
+        error: undefined
+      }
+      networkMonitor.requests.push(request)
+      
+      return originalFetch.apply(this, args)
+        .then(response => {
+          request.endTime = Date.now()
+          request.status = response.status.toString()
+          console.log(`[fhEVM] Network request completed: ${url} - Status: ${response.status} (${request.endTime - startTime}ms)`)
+          return response
+        })
+        .catch(error => {
+          request.endTime = Date.now()
+          request.error = error.message
+          console.error(`[fhEVM] Network request failed: ${url} - Error: ${error.message} (${request.endTime - startTime}ms)`)
+          throw error
+        })
+    }
+    
     // Try multiple initialization strategies
     let initSuccess = false
     let lastError: Error | null = null
@@ -70,11 +132,28 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     // Strategy 1: Normal initialization with timeout
     try {
       console.log(`[fhEVM] Attempting normal initialization...`)
+      const initStartTime = Date.now()
+      
+      // Start periodic status updates
+      const statusInterval = setInterval(() => {
+        const elapsed = Date.now() - initStartTime
+        const networkCount = networkMonitor.requests.length
+        const wasmCount = wasmMonitor.loaded.length + wasmMonitor.failed.length
+        console.log(`[fhEVM] Status update after ${elapsed}ms: ${networkCount} network requests, ${wasmCount} WASM operations`)
+      }, 3000) // Every 3 seconds
+      
       const initPromise = initSDK()
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("SDK initialization timeout after 15 seconds")), 15000)
+        setTimeout(() => {
+          clearInterval(statusInterval)
+          const elapsed = Date.now() - initStartTime
+          console.log(`[fhEVM] Init timeout after ${elapsed}ms. Network requests made:`, networkMonitor.requests.length)
+          reject(new Error("SDK initialization timeout after 15 seconds"))
+        }, 15000)
       )
+      
       await Promise.race([initPromise, timeoutPromise])
+      clearInterval(statusInterval)
       initSuccess = true
       console.log(`[fhEVM] SDK initialized successfully with normal method`)
     } catch (error) {
@@ -100,7 +179,55 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     }
     
     if (!initSuccess) {
+      // Restore original fetch
+      window.fetch = originalFetch
+      
+      // Log comprehensive network summary
+      const totalTime = Date.now() - networkMonitor.startTime
+      console.error(`[fhEVM] SDK initialization failed after ${totalTime}ms`)
+      console.error(`[fhEVM] Network activity summary:`)
+      console.error(`[fhEVM] - Total requests made: ${networkMonitor.requests.length}`)
+      console.error(`[fhEVM] - Successful requests: ${networkMonitor.requests.filter(r => r.status && !r.error).length}`)
+      console.error(`[fhEVM] - Failed requests: ${networkMonitor.requests.filter(r => r.error).length}`)
+      console.error(`[fhEVM] - Pending requests: ${networkMonitor.requests.filter(r => !r.endTime).length}`)
+      
+      if (networkMonitor.requests.length > 0) {
+        console.error(`[fhEVM] Request details:`)
+        networkMonitor.requests.forEach((req, index) => {
+          const duration = req.endTime ? req.endTime - req.startTime : Date.now() - req.startTime
+          const status = req.status || req.error || 'PENDING'
+          console.error(`[fhEVM]   ${index + 1}. ${req.url} - ${status} (${duration}ms)`)
+        })
+      } else {
+        console.error(`[fhEVM] No network requests were made during initialization - likely WASM loading issue`)
+      }
+      
+      // Log WASM activity
+      console.error(`[fhEVM] WASM activity:`)
+      console.error(`[fhEVM] - WASM instantiate calls: ${wasmMonitor.loaded.length + wasmMonitor.failed.length}`)
+      console.error(`[fhEVM] - Successful: ${wasmMonitor.loaded.length}`)
+      console.error(`[fhEVM] - Failed: ${wasmMonitor.failed.length}`)
+      if (wasmMonitor.failed.length > 0) {
+        console.error(`[fhEVM] WASM failures:`, wasmMonitor.failed)
+      }
+      
       throw new Error(`FHEVM SDK initialization failed after multiple attempts: ${lastError?.message}`)
+    }
+    
+    // Restore original fetch
+    window.fetch = originalFetch
+    
+    // Log successful network summary
+    const totalTime = Date.now() - networkMonitor.startTime
+    console.log(`[fhEVM] SDK initialization successful after ${totalTime}ms`)
+    console.log(`[fhEVM] Network requests made: ${networkMonitor.requests.length}`)
+    if (networkMonitor.requests.length > 0) {
+      console.log(`[fhEVM] Request summary:`)
+      networkMonitor.requests.forEach((req, index) => {
+        const duration = req.endTime ? req.endTime - req.startTime : 'PENDING'
+        const status = req.status || req.error || 'PENDING'
+        console.log(`[fhEVM]   ${index + 1}. ${req.url} - ${status} (${duration}ms)`)
+      })
     }
     
     console.log(`[fhEVM] Creating FHEVM instance...`)
