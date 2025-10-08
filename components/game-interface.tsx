@@ -1,20 +1,48 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useAccount, useConnect, useDisconnect } from "wagmi"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Hand, Scissors, FileText } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Hand, Scissors, FileText, Wallet, Copy, CheckCircle } from "lucide-react"
+import { ConnectButton } from "@rainbow-me/rainbowkit"
+import { encryptMove, getGameResult } from "@/lib/fhevm-utils"
 
 type Move = "rock" | "paper" | "scissors" | null
-type GameState = "waiting" | "player1-moved" | "both-moved" | "revealed"
+type GameState = "disconnected" | "menu" | "creating" | "joining" | "waiting-for-opponent" | "waiting-for-move" | "submitting-move" | "waiting-for-result" | "completed"
+
+interface Game {
+  id: number | null
+  player1: string | null
+  player2: string | null
+  player1Committed: boolean
+  player2Committed: boolean
+  finished: boolean
+}
 
 export function GameInterface() {
+  const { address, isConnected } = useAccount()
+  
+  // Game state
+  const [gameState, setGameState] = useState<GameState>("disconnected")
+  const [currentGame, setCurrentGame] = useState<Game>({
+    id: null,
+    player1: null,
+    player2: null,
+    player1Committed: false,
+    player2Committed: false,
+    finished: false
+  })
+  
+  // UI state
   const [selectedMove, setSelectedMove] = useState<Move>(null)
-  const [gameState, setGameState] = useState<GameState>("waiting")
-  const [player1Move, setPlayer1Move] = useState<Move>(null)
-  const [player2Move, setPlayer2Move] = useState<Move>(null)
-  const [winner, setWinner] = useState<"player1" | "player2" | "draw" | null>(null)
+  const [gameIdInput, setGameIdInput] = useState("")
+  const [gameIdToShare, setGameIdToShare] = useState<string>("")
+  const [isPlayer1, setIsPlayer1] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const moves = [
     { id: "rock", name: "Rock", icon: Hand, value: 0 },
@@ -22,54 +50,132 @@ export function GameInterface() {
     { id: "scissors", name: "Scissors", icon: Scissors, value: 2 },
   ]
 
-  const handleMoveSelect = (move: Move) => {
-    setSelectedMove(move)
+  // Update game state when wallet connects/disconnects
+  useEffect(() => {
+    if (isConnected) {
+      setGameState("menu")
+    } else {
+      setGameState("disconnected")
+      setCurrentGame({
+        id: null,
+        player1: null,
+        player2: null,
+        player1Committed: false,
+        player2Committed: false,
+        finished: false
+      })
+    }
+  }, [isConnected])
+
+  const handleCreateGame = async () => {
+    if (!address) return
+    
+    setGameState("creating")
+    try {
+      // TODO: Call smart contract to create game
+      // const contract = getContractInstance()
+      // const gameId = await contract.createGame()
+      
+      // For now, simulate game creation
+      const gameId = Math.floor(Math.random() * 10000)
+      
+      setCurrentGame({
+        id: gameId,
+        player1: address,
+        player2: null,
+        player1Committed: false,
+        player2Committed: false,
+        finished: false
+      })
+      
+      setGameIdToShare(gameId.toString())
+      setIsPlayer1(true)
+      setGameState("waiting-for-opponent")
+    } catch (error) {
+      console.error("Failed to create game:", error)
+      setGameState("menu")
+    }
   }
 
-  const handleSubmitMove = () => {
-    if (!selectedMove) return
+  const handleJoinGame = async () => {
+    if (!address || !gameIdInput) return
+    
+    setGameState("joining")
+    try {
+      const gameId = parseInt(gameIdInput)
+      
+      // TODO: Call smart contract to join game
+      // const contract = getContractInstance()
+      // await contract.joinGame(gameId)
+      
+      setCurrentGame({
+        id: gameId,
+        player1: null, // Will be fetched from contract
+        player2: address,
+        player1Committed: false,
+        player2Committed: false,
+        finished: false
+      })
+      
+      setIsPlayer1(false)
+      setGameState("waiting-for-move")
+    } catch (error) {
+      console.error("Failed to join game:", error)
+      setGameState("menu")
+    }
+  }
 
-    if (gameState === "waiting") {
-      setPlayer1Move(selectedMove)
-      setGameState("player1-moved")
+  const handleSubmitMove = async () => {
+    if (!selectedMove || !address || !currentGame.id) return
+    
+    setGameState("submitting-move")
+    try {
+      const moveValue = moves.find(m => m.id === selectedMove)?.value
+      if (moveValue === undefined) return
+      
+      // Encrypt the move using FHE
+      const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS!
+      const encryptedMove = await encryptMove(moveValue as 0 | 1 | 2, contractAddress, address)
+      
+      // TODO: Call smart contract to submit encrypted move
+      // const contract = getContractInstance()
+      // await contract.makeMove(currentGame.id, encryptedMove.handle, encryptedMove.proof)
+      
+      // Simulate successful submission
+      if (isPlayer1) {
+        setCurrentGame(prev => ({ ...prev, player1Committed: true }))
+      } else {
+        setCurrentGame(prev => ({ ...prev, player2Committed: true }))
+      }
+      
+      setGameState("waiting-for-result")
       setSelectedMove(null)
-    } else if (gameState === "player1-moved") {
-      setPlayer2Move(selectedMove)
-      setGameState("both-moved")
-
-      // Simulate game resolution
-      setTimeout(() => {
-        determineWinner(player1Move!, selectedMove)
-        setGameState("revealed")
-      }, 1500)
+    } catch (error) {
+      console.error("Failed to submit move:", error)
+      setGameState(isPlayer1 ? "waiting-for-opponent" : "waiting-for-move")
     }
   }
 
-  const determineWinner = (p1: Move, p2: Move) => {
-    if (p1 === p2) {
-      setWinner("draw")
-      return
-    }
-
-    const winConditions: Record<string, string> = {
-      "rock-scissors": "player1",
-      "scissors-paper": "player1",
-      "paper-rock": "player1",
-      "scissors-rock": "player2",
-      "paper-scissors": "player2",
-      "rock-paper": "player2",
-    }
-
-    const result = winConditions[`${p1}-${p2}`]
-    setWinner(result as "player1" | "player2")
+  const copyGameId = () => {
+    navigator.clipboard.writeText(gameIdToShare)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   const resetGame = () => {
+    setGameState("menu")
+    setCurrentGame({
+      id: null,
+      player1: null,
+      player2: null,
+      player1Committed: false,
+      player2Committed: false,
+      finished: false
+    })
+    setGameIdToShare("")
+    setGameIdInput("")
     setSelectedMove(null)
-    setGameState("waiting")
-    setPlayer1Move(null)
-    setPlayer2Move(null)
-    setWinner(null)
+    setIsPlayer1(false)
   }
 
   const getMoveIcon = (move: Move) => {
@@ -77,25 +183,151 @@ export function GameInterface() {
     return moveData?.icon || Hand
   }
 
+  // Show wallet connection if not connected
+  if (gameState === "disconnected") {
+    return (
+      <Card className="border-2">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wallet className="w-5 h-5" />
+            Connect Your Wallet
+          </CardTitle>
+          <CardDescription>
+            Connect your wallet to start playing encrypted Rock Paper Scissors
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center gap-4 py-8">
+            <ConnectButton />
+            <p className="text-sm text-muted-foreground text-center">
+              Make sure you're connected to the Sepolia network and have some test ETH
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Show main menu
+  if (gameState === "menu") {
+    return (
+      <div className="space-y-6">
+        <Card className="border-2">
+          <CardHeader>
+            <CardTitle>Welcome to Encrypted Rock Paper Scissors!</CardTitle>
+            <CardDescription>
+              Choose to create a new game or join an existing one
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Create New Game</h3>
+                <p className="text-sm text-muted-foreground">
+                  Start a new game and share the Game ID with your opponent
+                </p>
+                <Button onClick={handleCreateGame} className="w-full" size="lg">
+                  Create Game
+                </Button>
+              </div>
+              
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Join Existing Game</h3>
+                <p className="text-sm text-muted-foreground">
+                  Enter a Game ID to join someone else's game
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="gameId">Game ID</Label>
+                  <Input
+                    id="gameId"
+                    type="number"
+                    placeholder="Enter Game ID"
+                    value={gameIdInput}
+                    onChange={(e) => setGameIdInput(e.target.value)}
+                  />
+                </div>
+                <Button 
+                  onClick={handleJoinGame} 
+                  className="w-full" 
+                  size="lg"
+                  disabled={!gameIdInput}
+                >
+                  Join Game
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Show waiting for opponent screen
+  if (gameState === "waiting-for-opponent") {
+    return (
+      <Card className="border-2">
+        <CardHeader>
+          <CardTitle>Game Created! 🎮</CardTitle>
+          <CardDescription>
+            Share this Game ID with your opponent to start playing
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            <div className="flex items-center justify-center gap-4 p-6 bg-primary/10 rounded-lg border border-primary/20">
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground mb-2">Your Game ID</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-3xl font-bold text-primary">#{gameIdToShare}</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={copyGameId}
+                    className="flex items-center gap-1"
+                  >
+                    {copied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    {copied ? "Copied!" : "Copy"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+            
+            <div className="text-center space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Waiting for your opponent to join...
+              </p>
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+              </div>
+            </div>
+            
+            <Button onClick={resetGame} variant="outline" className="w-full">
+              Cancel Game
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Show game in progress
   return (
     <div className="space-y-6">
       <Card className="border-2">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Game Status</CardTitle>
+              <CardTitle>Game #{currentGame.id}</CardTitle>
               <CardDescription>
-                {gameState === "waiting" && "Waiting for Player 1 to make a move"}
-                {gameState === "player1-moved" && "Player 1 moved! Waiting for Player 2..."}
-                {gameState === "both-moved" && "Both players moved! Revealing results..."}
-                {gameState === "revealed" && "Game complete!"}
+                {gameState === "waiting-for-move" && "Choose your move (encrypted with FHE)"}
+                {gameState === "submitting-move" && "Submitting your encrypted move..."}
+                {gameState === "waiting-for-result" && "Waiting for opponent's move..."}
               </CardDescription>
             </div>
-            <Badge variant={gameState === "revealed" ? "default" : "secondary"}>
-              {gameState === "waiting" && "Ready"}
-              {gameState === "player1-moved" && "In Progress"}
-              {gameState === "both-moved" && "Computing..."}
-              {gameState === "revealed" && "Complete"}
+            <Badge variant="secondary">
+              {isPlayer1 ? "Player 1" : "Player 2"}
             </Badge>
           </div>
         </CardHeader>
@@ -104,7 +336,7 @@ export function GameInterface() {
             <div className="bg-muted/50 rounded-lg p-6 border border-border">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold">Player 1</h3>
-                {player1Move && gameState !== "revealed" && (
+                {currentGame.player1Committed && (
                   <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
                     <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                       <path
@@ -117,38 +349,30 @@ export function GameInterface() {
                   </Badge>
                 )}
               </div>
-              {player1Move && gameState === "revealed" ? (
-                <div className="flex flex-col items-center justify-center py-8">
-                  {(() => {
-                    const Icon = getMoveIcon(player1Move)
-                    return <Icon className="w-16 h-16 text-primary mb-2" />
-                  })()}
-                  <p className="text-lg font-semibold capitalize">{player1Move}</p>
-                </div>
-              ) : player1Move ? (
-                <div className="flex flex-col items-center justify-center py-8">
-                  <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mb-2">
-                    <svg className="w-8 h-8 text-primary" fill="currentColor" viewBox="0 0 20 20">
-                      <path
-                        fillRule="evenodd"
-                        d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
+              <div className="flex items-center justify-center py-8">
+                {currentGame.player1Committed ? (
+                  <div className="flex flex-col items-center">
+                    <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mb-2">
+                      <svg className="w-8 h-8 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                        <path
+                          fillRule="evenodd"
+                          d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Move encrypted</p>
                   </div>
-                  <p className="text-sm text-muted-foreground">Move encrypted</p>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center py-8 text-muted-foreground">
-                  <p className="text-sm">No move yet</p>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-muted-foreground">No move yet</p>
+                )}
+              </div>
             </div>
 
             <div className="bg-muted/50 rounded-lg p-6 border border-border">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold">Player 2</h3>
-                {player2Move && gameState !== "revealed" && (
+                {currentGame.player2Committed && (
                   <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
                     <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                       <path
@@ -161,60 +385,34 @@ export function GameInterface() {
                   </Badge>
                 )}
               </div>
-              {player2Move && gameState === "revealed" ? (
-                <div className="flex flex-col items-center justify-center py-8">
-                  {(() => {
-                    const Icon = getMoveIcon(player2Move)
-                    return <Icon className="w-16 h-16 text-primary mb-2" />
-                  })()}
-                  <p className="text-lg font-semibold capitalize">{player2Move}</p>
-                </div>
-              ) : player2Move ? (
-                <div className="flex flex-col items-center justify-center py-8">
-                  <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mb-2">
-                    <svg className="w-8 h-8 text-primary" fill="currentColor" viewBox="0 0 20 20">
-                      <path
-                        fillRule="evenodd"
-                        d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
+              <div className="flex items-center justify-center py-8">
+                {currentGame.player2Committed ? (
+                  <div className="flex flex-col items-center">
+                    <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mb-2">
+                      <svg className="w-8 h-8 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                        <path
+                          fillRule="evenodd"
+                          d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Move encrypted</p>
                   </div>
-                  <p className="text-sm text-muted-foreground">Move encrypted</p>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center py-8 text-muted-foreground">
-                  <p className="text-sm">No move yet</p>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-muted-foreground">No move yet</p>
+                )}
+              </div>
             </div>
           </div>
-
-          {gameState === "revealed" && winner && (
-            <div className="mt-6 p-6 bg-primary/10 border border-primary/20 rounded-lg text-center">
-              <h3 className="text-2xl font-bold mb-2">
-                {winner === "draw" ? "It's a Draw!" : `Player ${winner === "player1" ? "1" : "2"} Wins!`}
-              </h3>
-              <p className="text-muted-foreground mb-4">
-                {winner === "draw"
-                  ? "Both players chose the same move"
-                  : `${player1Move} ${winner === "player1" ? "beats" : "loses to"} ${player2Move}`}
-              </p>
-              <Button onClick={resetGame} variant="default">
-                Play Again
-              </Button>
-            </div>
-          )}
         </CardContent>
       </Card>
 
-      {gameState !== "revealed" && (
+      {(gameState === "waiting-for-move" || gameState === "submitting-move") && (
         <Card>
           <CardHeader>
-            <CardTitle>
-              {gameState === "waiting" ? "Player 1: Choose Your Move" : "Player 2: Choose Your Move"}
-            </CardTitle>
-            <CardDescription>Your move will be encrypted before submission</CardDescription>
+            <CardTitle>Choose Your Move</CardTitle>
+            <CardDescription>Your move will be encrypted using FHE before submission</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-4 mb-6">
@@ -223,7 +421,8 @@ export function GameInterface() {
                 return (
                   <button
                     key={move.id}
-                    onClick={() => handleMoveSelect(move.id as Move)}
+                    onClick={() => setSelectedMove(move.id as Move)}
+                    disabled={gameState === "submitting-move"}
                     className={`
                       relative p-6 rounded-lg border-2 transition-all
                       ${
@@ -231,6 +430,7 @@ export function GameInterface() {
                           ? "border-primary bg-primary/10 shadow-lg scale-105"
                           : "border-border hover:border-primary/50 hover:bg-muted/50"
                       }
+                      ${gameState === "submitting-move" ? "opacity-50 cursor-not-allowed" : ""}
                     `}
                   >
                     <div className="flex flex-col items-center gap-3">
@@ -250,11 +450,11 @@ export function GameInterface() {
 
             <Button
               onClick={handleSubmitMove}
-              disabled={!selectedMove || gameState === "both-moved"}
+              disabled={!selectedMove || gameState === "submitting-move"}
               className="w-full"
               size="lg"
             >
-              {gameState === "both-moved" ? "Computing Result..." : "Submit Encrypted Move"}
+              {gameState === "submitting-move" ? "Submitting..." : "Submit Encrypted Move"}
             </Button>
 
             {selectedMove && (
@@ -262,6 +462,24 @@ export function GameInterface() {
                 Your move will be encrypted using FHE before being submitted to the blockchain
               </p>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {gameState === "waiting-for-result" && (
+        <Card>
+          <CardContent className="text-center py-8">
+            <div className="space-y-4">
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+              </div>
+              <p className="text-muted-foreground">Waiting for opponent's move...</p>
+              <p className="text-sm text-muted-foreground">
+                Once both moves are submitted, the smart contract will determine the winner using encrypted computation
+              </p>
+            </div>
           </CardContent>
         </Card>
       )}
