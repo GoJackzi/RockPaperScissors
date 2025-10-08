@@ -43,33 +43,89 @@ export function moveNameToValue(name: string): Move {
  * Encrypt move using @zama-fhe/relayer-sdk
  */
 export async function encryptMove(move: Move, contractAddress: string, userAddress: string) {
-  // Import the relayer SDK dynamically to avoid issues during build
-  const { Relayer } = await import("@zama-fhe/relayer-sdk")
-  
-  console.log(`[fhEVM] Encrypting move ${move} for contract ${contractAddress}`)
-  
   try {
-    // Initialize the relayer
+    // Import the relayer SDK dynamically to avoid issues during build
+    const { Relayer } = await import("@zama-fhe/relayer-sdk")
+    
+    console.log(`[fhEVM] Encrypting move ${move} for contract ${contractAddress}`)
+    
+    // Initialize the relayer with proper configuration
     const relayer = new Relayer({
       contractAddress,
       userAddress,
-      network: "sepolia"
+      network: "sepolia",
+      gatewayUrl: "https://api.zama.ai/fhevm/gateway/sepolia"
     })
     
     // Encrypt the move
     const encryptedMove = await relayer.encrypt8(move)
+    
+    console.log(`[fhEVM] Successfully encrypted move ${move}`)
     
     return {
       handle: encryptedMove.handle,
       proof: encryptedMove.proof,
     }
   } catch (error) {
-    console.warn("Failed to encrypt with fhEVM, using placeholder:", error)
+    console.error("Failed to encrypt with fhEVM:", error)
+    throw new Error(`FHE encryption failed: ${error}`)
+  }
+}
+
+/**
+ * Decrypt result using @zama-fhe/relayer-sdk
+ */
+export async function decryptResult(
+  encryptedResult: any, 
+  contractAddress: string, 
+  userAddress: string
+): Promise<boolean> {
+  try {
+    const { Relayer } = await import("@zama-fhe/relayer-sdk")
     
-    // Fallback to placeholder if encryption fails
-    return {
-      handle: `0x${move.toString().padStart(64, "0")}`,
-      proof: "0x" + "00".repeat(32), // Placeholder proof
-    }
+    console.log(`[fhEVM] Decrypting result for contract ${contractAddress}`)
+    
+    const relayer = new Relayer({
+      contractAddress,
+      userAddress,
+      network: "sepolia",
+      gatewayUrl: "https://api.zama.ai/fhevm/gateway/sepolia"
+    })
+    
+    // Decrypt the encrypted boolean result
+    const decryptedResult = await relayer.decryptBool(encryptedResult)
+    
+    console.log(`[fhEVM] Successfully decrypted result: ${decryptedResult}`)
+    
+    return decryptedResult
+  } catch (error) {
+    console.error("Failed to decrypt with fhEVM:", error)
+    throw new Error(`FHE decryption failed: ${error}`)
+  }
+}
+
+/**
+ * Get encrypted result from contract and decrypt it
+ */
+export async function getGameResult(
+  gameId: number,
+  contractAddress: string,
+  userAddress: string,
+  contractInstance: any
+): Promise<{ isDraw: boolean; player1Wins: boolean }> {
+  try {
+    // Get encrypted results from contract
+    const [isDrawEncrypted, player1WinsEncrypted] = await contractInstance.getEncryptedResult(gameId)
+    
+    // Decrypt both results
+    const [isDraw, player1Wins] = await Promise.all([
+      decryptResult(isDrawEncrypted, contractAddress, userAddress),
+      decryptResult(player1WinsEncrypted, contractAddress, userAddress)
+    ])
+    
+    return { isDraw, player1Wins }
+  } catch (error) {
+    console.error("Failed to get game result:", error)
+    throw error
   }
 }

@@ -24,6 +24,25 @@ This isn't your ordinary Rock Paper Scissors game. Built with **Zama's Fully Hom
 - 🛡️ **Zero-knowledge proofs** guarantee valid moves
 - 🎯 **Provably fair** gameplay with cryptographic guarantees
 
+## 👥 How to Play (Opponent System)
+
+This game is designed for **two human players** to compete against each other:
+
+### 🎮 **Game Flow:**
+1. **Player 1** creates a new game and gets a **Game ID**
+2. **Player 1** shares the Game ID with **Player 2** (friend, colleague, etc.)
+3. **Player 2** joins the game using the Game ID
+4. Both players **encrypt their moves** using FHE
+5. **Smart contract** determines the winner using encrypted computation
+6. **Results are revealed** to both players
+
+### 🤝 **Finding Opponents:**
+- **Friends & Family**: Share Game IDs with people you know
+- **Colleagues**: Challenge coworkers during breaks
+- **Social Media**: Post Game IDs on Twitter/Discord
+- **Gaming Communities**: Join crypto gaming groups
+- **Tournaments**: Organize competitions with Game ID sharing
+
 ## ✨ Features
 
 <table>

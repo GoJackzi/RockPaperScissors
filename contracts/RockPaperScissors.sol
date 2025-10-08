@@ -19,6 +19,13 @@ contract RockPaperScissors is SepoliaConfig {
         bool player2Committed;
         bool gameFinished;
         uint256 createdAt;
+        EncryptedResult encryptedResults;
+    }
+    
+    struct EncryptedResult {
+        ebool isDraw;
+        ebool player1Wins;
+        bool resultsComputed;
     }
     
     mapping(uint256 => Game) public games;
@@ -41,7 +48,12 @@ contract RockPaperScissors is SepoliaConfig {
             player1Committed: false,
             player2Committed: false,
             gameFinished: false,
-            createdAt: block.timestamp
+            createdAt: block.timestamp,
+            encryptedResults: EncryptedResult({
+                isDraw: FHE.asEbool(false),
+                player1Wins: FHE.asEbool(false),
+                resultsComputed: false
+            })
         });
         
         emit GameCreated(gameId, msg.sender);
@@ -132,10 +144,31 @@ contract RockPaperScissors is SepoliaConfig {
         
         ebool player1Wins = FHE.or(FHE.or(rockBeatsScissors, paperBeatsRock), scissorsBeatsPaper);
         
-        // Note: In a real implementation, you would need to decrypt the result
-        // using the Gateway for decryption. This is a simplified version.
-        // For now, we return a placeholder
+        // Store encrypted results for later decryption
+        game.encryptedResults = EncryptedResult({
+            isDraw: isDraw,
+            player1Wins: player1Wins,
+            resultsComputed: true
+        });
+        
+        // Return placeholder - actual decryption happens via Gateway
+        // The frontend will call decryptResult() to get the actual winner
         return address(0);
+    }
+    
+    /// @notice Get encrypted result for decryption via Gateway
+    /// @param gameId The ID of the game
+    /// @return isDraw Encrypted boolean indicating if it's a draw
+    /// @return player1Wins Encrypted boolean indicating if player 1 wins
+    function getEncryptedResult(uint256 gameId) external returns (ebool, ebool) {
+        Game storage game = games[gameId];
+        require(game.encryptedResults.resultsComputed, "Results not computed yet");
+        
+        // Grant permission to view encrypted results
+        FHE.allowTransient(game.encryptedResults.isDraw, msg.sender);
+        FHE.allowTransient(game.encryptedResults.player1Wins, msg.sender);
+        
+        return (game.encryptedResults.isDraw, game.encryptedResults.player1Wins);
     }
     
     /// @notice Get encrypted move for a player (only callable by that player)
