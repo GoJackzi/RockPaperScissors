@@ -52,12 +52,21 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     console.log(`[fhEVM] Encrypting move ${move} for contract ${contractAddress}`)
     
     // Import the correct SDK functions
-    const { createInstance, SepoliaConfig } = await import("@zama-fhe/relayer-sdk/web")
+    const { createInstance, SepoliaConfig, initSDK } = await import("@zama-fhe/relayer-sdk/web")
+    
+    // Initialize SDK first to ensure WASM modules are loaded
+    console.log(`[fhEVM] Initializing SDK...`)
+    await initSDK()
+    console.log(`[fhEVM] SDK initialized successfully`)
     
     // Create FHEVM instance with Sepolia configuration
+    const relayerUrl = process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud"
+    console.log(`[fhEVM] Using relayer URL: ${relayerUrl}`)
+    console.log(`[fhEVM] Using SepoliaConfig:`, SepoliaConfig)
+    
     const fhevmInstance = await createInstance({
       ...SepoliaConfig,
-      relayerUrl: process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud"
+      relayerUrl: relayerUrl
     })
     
     // Create encrypted input for the move
@@ -99,7 +108,10 @@ export async function decryptResult(
     console.log(`[fhEVM] Decrypting result for contract ${contractAddress}`)
     
     // Import the correct SDK functions
-    const { createInstance, SepoliaConfig } = await import("@zama-fhe/relayer-sdk/web")
+    const { createInstance, SepoliaConfig, initSDK } = await import("@zama-fhe/relayer-sdk/web")
+    
+    // Initialize SDK first to ensure WASM modules are loaded
+    await initSDK()
     
     // Create FHEVM instance with Sepolia configuration
     const fhevmInstance = await createInstance({

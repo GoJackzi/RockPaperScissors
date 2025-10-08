@@ -34,6 +34,18 @@ const nextConfig = {
           global: 'globalThis',
         })
       )
+      
+      // Enable WASM support for FHEVM SDK
+      config.experiments = {
+        ...config.experiments,
+        asyncWebAssembly: true,
+      }
+      
+      // Add WASM file support
+      config.module.rules.push({
+        test: /\.wasm$/,
+        type: 'webassembly/async',
+      })
     }
     return config
   },
