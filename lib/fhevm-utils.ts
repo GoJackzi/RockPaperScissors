@@ -51,13 +51,15 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     
     console.log(`[fhEVM] Encrypting move ${move} for contract ${contractAddress}`)
     
-    // Import the correct SDK functions from bundle version (browser-optimized)
-    const { createInstance, SepoliaConfig, initSDK } = await import("@zama-fhe/relayer-sdk/bundle")
+    // Import the correct SDK functions from web version (browser-optimized)
+    const { initSDK, createInstance, SepoliaConfig } = await import("@zama-fhe/relayer-sdk/web")
     
-    // Initialize SDK first to ensure WASM modules are loaded
     console.log(`[fhEVM] Initializing SDK...`)
+    // CRITICAL: Initialize WASM modules first
     await initSDK()
     console.log(`[fhEVM] SDK initialized successfully`)
+    
+    console.log(`[fhEVM] Creating FHEVM instance...`)
     
     // Create FHEVM instance with Sepolia configuration
     const relayerUrl = process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud"
@@ -107,10 +109,10 @@ export async function decryptResult(
     
     console.log(`[fhEVM] Decrypting result for contract ${contractAddress}`)
     
-    // Import the correct SDK functions from bundle version (browser-optimized)
-    const { createInstance, SepoliaConfig, initSDK } = await import("@zama-fhe/relayer-sdk/bundle")
+    // Import the correct SDK functions from web version (browser-optimized)
+    const { initSDK, createInstance, SepoliaConfig } = await import("@zama-fhe/relayer-sdk/web")
     
-    // Initialize SDK first to ensure WASM modules are loaded
+    // CRITICAL: Initialize WASM modules first
     await initSDK()
     
     // Create FHEVM instance with Sepolia configuration

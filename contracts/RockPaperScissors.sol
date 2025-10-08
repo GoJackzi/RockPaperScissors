@@ -290,3 +290,249 @@ contract RockPaperScissors is SepoliaConfig {
         return games[gameId].requestId;
     }
 }
+        FHE.allowTransient(player1WinsEncrypted, msg.sender);
+        
+        // FHEVM v0.8 compliance: Request async decryption
+        bytes32[] memory cts = new bytes32[](2);
+        cts[0] = FHE.toBytes32(isDrawEncrypted);
+        cts[1] = FHE.toBytes32(player1WinsEncrypted);
+        
+        uint256 requestId = FHE.requestDecryption(cts, this.gameResolutionCallback.selector);
+        game.requestId = requestId;
+        game.status = GameStatus.DecryptionInProgress;
+        requestIdToGameId[requestId] = gameId;
+        
+        emit DecryptionRequested(gameId, requestId);
+    }
+    
+    /// @notice FHEVM v0.8 compliant callback function for game resolution decryption
+    /// @param requestId The request ID from the decryption request
+    /// @param cleartexts The decrypted results
+    /// @param decryptionProof The decryption proof
+    function gameResolutionCallback(
+        uint256 requestId,
+        bytes memory cleartexts,
+        bytes memory decryptionProof
+    ) external {
+        // Find the game using the request ID mapping
+        uint256 gameId = requestIdToGameId[requestId];
+        require(gameId != 0 || games[0].requestId == requestId, "Request ID not found");
+        
+        Game storage game = games[gameId];
+        
+        // FHEVM v0.8 compliance: Verify the decryption signatures
+        FHE.checkSignatures(requestId, cleartexts, decryptionProof);
+        
+        // Decode the results
+        (bool isDraw, bool player1Wins) = abi.decode(cleartexts, (bool, bool));
+        
+        // Store the decrypted results
+        game.isDraw = isDraw;
+        game.player1Wins = player1Wins;
+        game.resultsDecrypted = true;
+        game.status = GameStatus.ResultsDecrypted;
+        
+        // Determine the winner
+        address winner = address(0);
+        if (!game.isDraw) {
+            winner = game.player1Wins ? game.player1 : game.player2;
+        }
+        
+        emit GameFinished(gameId, winner, isDraw);
+    }
+    
+    /// @notice Get game information
+    /// @param gameId The ID of the game
+    /// @return player1 Address of player 1
+    /// @return player2 Address of player 2
+    /// @return status Current game status
+    /// @return player1Committed Whether player 1 has committed their move
+    /// @return player2Committed Whether player 2 has committed their move
+    /// @return resultsDecrypted Whether results have been decrypted
+    function getGame(uint256 gameId) external view returns (
+        address player1,
+        address player2,
+        GameStatus status,
+        bool player1Committed,
+        bool player2Committed,
+        bool resultsDecrypted
+    ) {
+        Game storage game = games[gameId];
+        require(game.player1 != address(0), "Game does not exist");
+        
+        return (
+            game.player1,
+            game.player2,
+            game.status,
+            game.player1Committed,
+            game.player2Committed,
+            game.resultsDecrypted
+        );
+    }
+    
+    /// @notice Get decrypted game results (only available after decryption)
+    /// @param gameId The ID of the game
+    /// @return isDraw Whether the game was a draw
+    /// @return player1Wins Whether player 1 won
+    /// @return winner The address of the winner (address(0) for draw)
+    function getGameResults(uint256 gameId) external view returns (
+        bool isDraw,
+        bool player1Wins,
+        address winner
+    ) {
+        Game storage game = games[gameId];
+        require(game.player1 != address(0), "Game does not exist");
+        require(game.resultsDecrypted, "Results not yet decrypted");
+        
+        address winnerAddress = address(0);
+        if (!game.isDraw) {
+            winnerAddress = game.player1Wins ? game.player1 : game.player2;
+        }
+        
+        return (game.isDraw, game.player1Wins, winnerAddress);
+    }
+    
+    /// @notice Check if game is ready to be resolved
+    /// @param gameId The ID of the game
+    /// @return Whether both players have committed their moves
+    function isGameReady(uint256 gameId) external view returns (bool) {
+        Game storage game = games[gameId];
+        return game.player1Committed && game.player2Committed && game.status == GameStatus.MovesCommitted;
+    }
+    
+    /// @notice Get the current game counter
+    /// @return The current game counter value
+    function getGameCounter() external view returns (uint256) {
+        return gameCounter;
+    }
+    
+    /// @notice Get the request ID for a game (for debugging)
+    /// @param gameId The ID of the game
+    /// @return The request ID for decryption
+    function getGameRequestId(uint256 gameId) external view returns (uint256) {
+        return games[gameId].requestId;
+    }
+}
+        FHE.allowTransient(player1WinsEncrypted, msg.sender);
+        
+        // FHEVM v0.8 compliance: Request async decryption
+        bytes32[] memory cts = new bytes32[](2);
+        cts[0] = FHE.toBytes32(isDrawEncrypted);
+        cts[1] = FHE.toBytes32(player1WinsEncrypted);
+        
+        uint256 requestId = FHE.requestDecryption(cts, this.gameResolutionCallback.selector);
+        game.requestId = requestId;
+        game.status = GameStatus.DecryptionInProgress;
+        requestIdToGameId[requestId] = gameId;
+        
+        emit DecryptionRequested(gameId, requestId);
+    }
+    
+    /// @notice FHEVM v0.8 compliant callback function for game resolution decryption
+    /// @param requestId The request ID from the decryption request
+    /// @param cleartexts The decrypted results
+    /// @param decryptionProof The decryption proof
+    function gameResolutionCallback(
+        uint256 requestId,
+        bytes memory cleartexts,
+        bytes memory decryptionProof
+    ) external {
+        // Find the game using the request ID mapping
+        uint256 gameId = requestIdToGameId[requestId];
+        require(gameId != 0 || games[0].requestId == requestId, "Request ID not found");
+        
+        Game storage game = games[gameId];
+        
+        // FHEVM v0.8 compliance: Verify the decryption signatures
+        FHE.checkSignatures(requestId, cleartexts, decryptionProof);
+        
+        // Decode the results
+        (bool isDraw, bool player1Wins) = abi.decode(cleartexts, (bool, bool));
+        
+        // Store the decrypted results
+        game.isDraw = isDraw;
+        game.player1Wins = player1Wins;
+        game.resultsDecrypted = true;
+        game.status = GameStatus.ResultsDecrypted;
+        
+        // Determine the winner
+        address winner = address(0);
+        if (!game.isDraw) {
+            winner = game.player1Wins ? game.player1 : game.player2;
+        }
+        
+        emit GameFinished(gameId, winner, isDraw);
+    }
+    
+    /// @notice Get game information
+    /// @param gameId The ID of the game
+    /// @return player1 Address of player 1
+    /// @return player2 Address of player 2
+    /// @return status Current game status
+    /// @return player1Committed Whether player 1 has committed their move
+    /// @return player2Committed Whether player 2 has committed their move
+    /// @return resultsDecrypted Whether results have been decrypted
+    function getGame(uint256 gameId) external view returns (
+        address player1,
+        address player2,
+        GameStatus status,
+        bool player1Committed,
+        bool player2Committed,
+        bool resultsDecrypted
+    ) {
+        Game storage game = games[gameId];
+        require(game.player1 != address(0), "Game does not exist");
+        
+        return (
+            game.player1,
+            game.player2,
+            game.status,
+            game.player1Committed,
+            game.player2Committed,
+            game.resultsDecrypted
+        );
+    }
+    
+    /// @notice Get decrypted game results (only available after decryption)
+    /// @param gameId The ID of the game
+    /// @return isDraw Whether the game was a draw
+    /// @return player1Wins Whether player 1 won
+    /// @return winner The address of the winner (address(0) for draw)
+    function getGameResults(uint256 gameId) external view returns (
+        bool isDraw,
+        bool player1Wins,
+        address winner
+    ) {
+        Game storage game = games[gameId];
+        require(game.player1 != address(0), "Game does not exist");
+        require(game.resultsDecrypted, "Results not yet decrypted");
+        
+        address winnerAddress = address(0);
+        if (!game.isDraw) {
+            winnerAddress = game.player1Wins ? game.player1 : game.player2;
+        }
+        
+        return (game.isDraw, game.player1Wins, winnerAddress);
+    }
+    
+    /// @notice Check if game is ready to be resolved
+    /// @param gameId The ID of the game
+    /// @return Whether both players have committed their moves
+    function isGameReady(uint256 gameId) external view returns (bool) {
+        Game storage game = games[gameId];
+        return game.player1Committed && game.player2Committed && game.status == GameStatus.MovesCommitted;
+    }
+    
+    /// @notice Get the current game counter
+    /// @return The current game counter value
+    function getGameCounter() external view returns (uint256) {
+        return gameCounter;
+    }
+    
+    /// @notice Get the request ID for a game (for debugging)
+    /// @param gameId The ID of the game
+    /// @return The request ID for decryption
+    function getGameRequestId(uint256 gameId) external view returns (uint256) {
+        return games[gameId].requestId;
+    }
+}

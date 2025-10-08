@@ -26,6 +26,12 @@ export default function RootLayout({
               if (typeof global === 'undefined') {
                 var global = globalThis;
               }
+              if (typeof process === 'undefined') {
+                var process = { env: {} };
+              }
+              if (typeof Buffer === 'undefined') {
+                var Buffer = globalThis.Buffer || {};
+              }
             `,
           }}
         />

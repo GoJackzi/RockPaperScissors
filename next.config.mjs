@@ -17,25 +17,35 @@ const nextConfig = {
         fs: false,
         net: false,
         tls: false,
-        crypto: false,
-        stream: false,
+        crypto: 'crypto-browserify',
+        stream: 'stream-browserify',
         url: false,
         zlib: false,
         http: false,
         https: false,
         assert: false,
         os: false,
-        path: false,
+        path: 'path-browserify',
+        // Add polyfills for web version
+        buffer: 'buffer',
+        process: 'process/browser',
+        // Fix for tfhe_bg.wasm
+        'tfhe_bg.wasm': 'tfhe/tfhe_bg.wasm',
       }
       
-      // Define global for browser environment
+      // Define global for browser environment and add polyfills
       config.plugins.push(
         new webpack.DefinePlugin({
           global: 'globalThis',
+          process: 'process',
+        }),
+        new webpack.ProvidePlugin({
+          Buffer: ['buffer', 'Buffer'],
+          process: 'process/browser',
         })
       )
       
-      // Enable WASM support for FHEVM SDK bundle
+      // Enable WASM support for FHEVM SDK
       config.experiments = {
         ...config.experiments,
         asyncWebAssembly: true,

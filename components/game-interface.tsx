@@ -399,7 +399,8 @@ export function GameInterface() {
       if (moveValue === undefined) return
       
       // Encrypt the move using FHE
-      const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS!
+      const contractAddress = CONTRACT_ADDRESS
+      console.log(`[Game] Using contract address: ${contractAddress}`)
       const encryptedMove = await encryptMove(moveValue as 0 | 1 | 2, contractAddress, address)
       
       // Call smart contract to submit encrypted move
