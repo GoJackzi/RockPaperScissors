@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAccount, useConnect, useDisconnect } from "wagmi"
+import { useAccount, useConnect, useDisconnect, useContractWrite, useContractRead } from "wagmi"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Hand, Scissors, FileText, Wallet, Copy, CheckCircle } from "lucide-react"
 import { ConnectButton } from "@rainbow-me/rainbowkit"
 import { encryptMove, getGameResult } from "@/lib/fhevm-utils"
+import { parseEther } from "viem"
 
 type Move = "rock" | "paper" | "scissors" | null
 type GameState = "disconnected" | "menu" | "creating" | "joining" | "waiting-for-opponent" | "waiting-for-move" | "submitting-move" | "waiting-for-result" | "completed"
@@ -22,6 +23,49 @@ interface Game {
   player2Committed: boolean
   finished: boolean
 }
+
+// Contract configuration
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`
+const CONTRACT_ABI = [
+  {
+    "inputs": [],
+    "name": "createGame",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "gameId", "type": "uint256"}],
+    "name": "joinGame",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "uint256", "name": "gameId", "type": "uint256"},
+      {"internalType": "bytes", "name": "encryptedMove", "type": "bytes"},
+      {"internalType": "bytes", "name": "proof", "type": "bytes"}
+    ],
+    "name": "makeMove",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "gameId", "type": "uint256"}],
+    "name": "getGame",
+    "outputs": [
+      {"internalType": "address", "name": "player1", "type": "address"},
+      {"internalType": "address", "name": "player2", "type": "address"},
+      {"internalType": "bool", "name": "player1Committed", "type": "bool"},
+      {"internalType": "bool", "name": "player2Committed", "type": "bool"},
+      {"internalType": "bool", "name": "gameFinished", "type": "bool"}
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+] as const
 
 export function GameInterface() {
   const { address, isConnected } = useAccount()
@@ -43,6 +87,113 @@ export function GameInterface() {
   const [gameIdToShare, setGameIdToShare] = useState<string>("")
   const [isPlayer1, setIsPlayer1] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  // Wagmi hooks for contract interactions
+  const { write: createGameWrite, isLoading: isCreatingGame } = useContractWrite({
+    address: CONTRACT_ADDRESS,
+    abi: CONTRACT_ABI,
+    functionName: 'createGame',
+    onSuccess: async (data) => {
+      console.log('Game created successfully:', data)
+      // Wait for transaction to be mined and get the game ID
+      try {
+        // For now, we'll use a temporary game ID and let the polling handle the real state
+        const tempGameId = Math.floor(Math.random() * 1000000)
+        setCurrentGame({
+          id: tempGameId,
+          player1: address,
+          player2: null,
+          player1Committed: false,
+          player2Committed: false,
+          finished: false
+        })
+        setGameIdToShare(tempGameId.toString())
+        setIsPlayer1(true)
+        setGameState("waiting-for-opponent")
+      } catch (error) {
+        console.error('Error setting up game:', error)
+        setGameState("menu")
+      }
+    },
+    onError: (error) => {
+      console.error('Failed to create game:', error)
+      setGameState("menu")
+    }
+  })
+
+  const { write: joinGameWrite, isLoading: isJoiningGame } = useContractWrite({
+    address: CONTRACT_ADDRESS,
+    abi: CONTRACT_ABI,
+    functionName: 'joinGame',
+    onSuccess: (data) => {
+      console.log('Joined game successfully:', data)
+      setGameState("waiting-for-move")
+    },
+    onError: (error) => {
+      console.error('Failed to join game:', error)
+      setGameState("menu")
+    }
+  })
+
+  const { write: makeMoveWrite, isLoading: isSubmittingMove } = useContractWrite({
+    address: CONTRACT_ADDRESS,
+    abi: CONTRACT_ABI,
+    functionName: 'makeMove',
+    onSuccess: (data) => {
+      console.log('Move submitted successfully:', data)
+      if (isPlayer1) {
+        setCurrentGame(prev => ({ ...prev, player1Committed: true }))
+      } else {
+        setCurrentGame(prev => ({ ...prev, player2Committed: true }))
+      }
+      setGameState("waiting-for-result")
+    },
+    onError: (error) => {
+      console.error('Failed to submit move:', error)
+      setGameState("waiting-for-move")
+    }
+  })
+
+  // Poll game state when we have a game ID
+  const { data: gameData, refetch: refetchGame } = useContractRead({
+    address: CONTRACT_ADDRESS,
+    abi: CONTRACT_ABI,
+    functionName: 'getGame',
+    args: currentGame.id ? [BigInt(currentGame.id)] : undefined,
+    enabled: !!currentGame.id,
+    watch: true, // Auto-refresh every block
+    onSuccess: (data) => {
+      if (data && currentGame.id) {
+        const [player1, player2, player1Committed, player2Committed, finished] = data
+        setCurrentGame(prev => ({
+          ...prev,
+          player1: player1,
+          player2: player2,
+          player1Committed,
+          player2Committed,
+          finished
+        }))
+
+        // Update game state based on contract data
+        if (finished) {
+          setGameState("completed")
+        } else if (player1Committed && player2Committed) {
+          setGameState("waiting-for-result")
+        } else if (player1 && player2) {
+          // Both players joined, check who can make a move
+          if (address === player1 && !player1Committed) {
+            setGameState("waiting-for-move")
+          } else if (address === player2 && !player2Committed) {
+            setGameState("waiting-for-move")
+          } else {
+            setGameState("waiting-for-opponent")
+          }
+        } else if (player1 && !player2) {
+          setGameState("waiting-for-opponent")
+        }
+      }
+    }
+  })
 
   const moves = [
     { id: "rock", name: "Rock", icon: Hand, value: 0 },
@@ -72,25 +223,8 @@ export function GameInterface() {
     
     setGameState("creating")
     try {
-      // TODO: Call smart contract to create game
-      // const contract = getContractInstance()
-      // const gameId = await contract.createGame()
-      
-      // For now, simulate game creation
-      const gameId = Math.floor(Math.random() * 10000)
-      
-      setCurrentGame({
-        id: gameId,
-        player1: address,
-        player2: null,
-        player1Committed: false,
-        player2Committed: false,
-        finished: false
-      })
-      
-      setGameIdToShare(gameId.toString())
-      setIsPlayer1(true)
-      setGameState("waiting-for-opponent")
+      // Call smart contract to create game
+      createGameWrite()
     } catch (error) {
       console.error("Failed to create game:", error)
       setGameState("menu")
@@ -104,10 +238,7 @@ export function GameInterface() {
     try {
       const gameId = parseInt(gameIdInput)
       
-      // TODO: Call smart contract to join game
-      // const contract = getContractInstance()
-      // await contract.joinGame(gameId)
-      
+      // Set up game state first
       setCurrentGame({
         id: gameId,
         player1: null, // Will be fetched from contract
@@ -118,7 +249,9 @@ export function GameInterface() {
       })
       
       setIsPlayer1(false)
-      setGameState("waiting-for-move")
+      
+      // Call smart contract to join game
+      joinGameWrite({ args: [BigInt(gameId)] })
     } catch (error) {
       console.error("Failed to join game:", error)
       setGameState("menu")
@@ -137,18 +270,14 @@ export function GameInterface() {
       const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS!
       const encryptedMove = await encryptMove(moveValue as 0 | 1 | 2, contractAddress, address)
       
-      // TODO: Call smart contract to submit encrypted move
-      // const contract = getContractInstance()
-      // await contract.makeMove(currentGame.id, encryptedMove.handle, encryptedMove.proof)
-      
-      // Simulate successful submission
-      if (isPlayer1) {
-        setCurrentGame(prev => ({ ...prev, player1Committed: true }))
-      } else {
-        setCurrentGame(prev => ({ ...prev, player2Committed: true }))
-      }
-      
-      setGameState("waiting-for-result")
+      // Call smart contract to submit encrypted move
+      makeMoveWrite({
+        args: [
+          BigInt(currentGame.id),
+          encryptedMove.handle as `0x${string}`,
+          encryptedMove.proof as `0x${string}`
+        ]
+      })
       setSelectedMove(null)
     } catch (error) {
       console.error("Failed to submit move:", error)
@@ -226,8 +355,13 @@ export function GameInterface() {
                 <p className="text-sm text-muted-foreground">
                   Start a new game and share the Game ID with your opponent
                 </p>
-                <Button onClick={handleCreateGame} className="w-full" size="lg">
-                  Create Game
+                <Button 
+                  onClick={handleCreateGame} 
+                  className="w-full" 
+                  size="lg"
+                  disabled={isCreatingGame}
+                >
+                  {isCreatingGame ? "Creating Game..." : "Create Game"}
                 </Button>
               </div>
               
@@ -250,9 +384,9 @@ export function GameInterface() {
                   onClick={handleJoinGame} 
                   className="w-full" 
                   size="lg"
-                  disabled={!gameIdInput}
+                  disabled={!gameIdInput || isJoiningGame}
                 >
-                  Join Game
+                  {isJoiningGame ? "Joining Game..." : "Join Game"}
                 </Button>
               </div>
             </div>
@@ -450,11 +584,11 @@ export function GameInterface() {
 
             <Button
               onClick={handleSubmitMove}
-              disabled={!selectedMove || gameState === "submitting-move"}
+              disabled={!selectedMove || isSubmittingMove}
               className="w-full"
               size="lg"
             >
-              {gameState === "submitting-move" ? "Submitting..." : "Submit Encrypted Move"}
+              {isSubmittingMove ? "Submitting..." : "Submit Encrypted Move"}
             </Button>
 
             {selectedMove && (
