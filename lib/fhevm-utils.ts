@@ -63,12 +63,16 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
     
     // Create FHEVM instance with Sepolia configuration
     const relayerUrl = process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud"
+    const rpcUrl = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com"
     console.log(`[fhEVM] Using relayer URL: ${relayerUrl}`)
+    console.log(`[fhEVM] Using RPC URL: ${rpcUrl}`)
     console.log(`[fhEVM] Using SepoliaConfig:`, SepoliaConfig)
     
     const fhevmInstance = await createInstance({
       ...SepoliaConfig,
-      relayerUrl: relayerUrl
+      relayerUrl: relayerUrl,
+      // Override the RPC URL to use our Infura endpoint
+      rpcUrl: rpcUrl
     })
     
     // Create encrypted input for the move
@@ -116,9 +120,14 @@ export async function decryptResult(
     await initSDK()
     
     // Create FHEVM instance with Sepolia configuration
+    const relayerUrl = process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud"
+    const rpcUrl = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com"
+    
     const fhevmInstance = await createInstance({
       ...SepoliaConfig,
-      relayerUrl: process.env.NEXT_PUBLIC_FHEVM_RELAYER_URL || "https://relayer.testnet.zama.cloud"
+      relayerUrl: relayerUrl,
+      // Override the RPC URL to use our Infura endpoint
+      rpcUrl: rpcUrl
     })
     
     // Use public decrypt for game results (no user signature needed for public results)
