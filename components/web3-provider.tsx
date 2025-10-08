@@ -12,6 +12,13 @@ const config = getDefaultConfig({
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "demo-project-id",
   chains: [sepolia],
   ssr: false,
+  // Suppress WalletConnect warnings
+  appInfo: {
+    appName: "Encrypted Rock Paper Scissors",
+    appDescription: "Privacy-preserving Rock Paper Scissors game",
+    appUrl: "https://your-app-url.com",
+    appIcon: "https://your-app-icon.com/icon.png",
+  },
 })
 
 const queryClient = new QueryClient()

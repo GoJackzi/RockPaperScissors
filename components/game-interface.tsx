@@ -25,7 +25,7 @@ interface Game {
 }
 
 // Contract configuration
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`
+const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x768b885C490E94e003F6D85ae8c532ca0fcD6E9D") as `0x${string}`
 const CONTRACT_ABI = [
   {
     "inputs": [],
@@ -44,7 +44,7 @@ const CONTRACT_ABI = [
   {
     "inputs": [
       {"internalType": "uint256", "name": "gameId", "type": "uint256"},
-      {"internalType": "bytes", "name": "encryptedMove", "type": "bytes"},
+      {"internalType": "externalEuint8", "name": "encryptedMove", "type": "bytes32"},
       {"internalType": "bytes", "name": "inputProof", "type": "bytes"}
     ],
     "name": "makeMove",
@@ -95,27 +95,19 @@ export function GameInterface() {
     functionName: 'createGame',
     onSuccess: async (data) => {
       console.log('Game created successfully:', data)
-      // The transaction was submitted, now we need to wait for it to be mined
-      // and get the actual game ID from the transaction receipt
-      try {
-        // For now, set up a temporary state while we wait for the transaction
-        setGameState("creating")
-        setIsPlayer1(true)
-        
-        // TODO: Parse the transaction receipt to get the actual game ID
-        // For now, we'll use a placeholder that will be updated by polling
-        setCurrentGame({
-          id: 0, // Will be updated when transaction is mined
-          player1: address,
-          player2: null,
-          player1Committed: false,
-          player2Committed: false,
-          finished: false
-        })
-      } catch (error) {
-        console.error('Error setting up game:', error)
-        setGameState("menu")
-      }
+      // Set up temporary state while waiting for transaction confirmation
+      setGameState("creating")
+      setIsPlayer1(true)
+      
+      // Set up a temporary game state - the real game ID will be detected via polling
+      setCurrentGame({
+        id: null, // Will be detected via polling
+        player1: address,
+        player2: null,
+        player1Committed: false,
+        player2Committed: false,
+        finished: false
+      })
     },
     onError: (error) => {
       console.error('Failed to create game:', error)
@@ -192,6 +184,70 @@ export function GameInterface() {
             setGameState("waiting-for-opponent")
           }
         } else if (player1 && !player2) {
+          setGameState("waiting-for-opponent")
+          // If we're player1 and waiting for opponent, set the game ID to share
+          if (address === player1 && !gameIdToShare) {
+            setGameIdToShare(currentGame.id.toString())
+          }
+        }
+      }
+    }
+  })
+
+  // Poll for newly created games when we're in "creating" state
+  const [pollingGameId, setPollingGameId] = useState<number | null>(null)
+  
+  useEffect(() => {
+    if (gameState === "creating" && address && !currentGame.id) {
+      // Start polling for games created by this user
+      const pollForNewGame = async () => {
+        try {
+          // Try to find a recent game created by this user
+          // We'll check game IDs starting from 0 up to a reasonable number
+          for (let gameId = 0; gameId < 1000; gameId++) {
+            try {
+              // This will be called by wagmi's useContractRead
+              // We just need to trigger the polling
+              if (!pollingGameId) {
+                setPollingGameId(gameId)
+                break
+              }
+            } catch (error) {
+              // Game doesn't exist, continue
+              continue
+            }
+          }
+        } catch (error) {
+          console.error('Error polling for new game:', error)
+        }
+      }
+      
+      const interval = setInterval(pollForNewGame, 2000) // Poll every 2 seconds
+      return () => clearInterval(interval)
+    }
+  }, [gameState, address, currentGame.id, pollingGameId])
+
+  // Check if the polling game ID is a game created by us
+  const { data: pollingGameData } = useContractRead({
+    address: CONTRACT_ADDRESS,
+    abi: CONTRACT_ABI,
+    functionName: 'getGame',
+    args: pollingGameId ? [BigInt(pollingGameId)] : undefined,
+    enabled: !!pollingGameId,
+    onSuccess: (data) => {
+      if (data && pollingGameId) {
+        const [player1, player2, player1Committed, player2Committed, finished] = data
+        // If this game is created by us and we don't have a current game ID
+        if (player1 === address && !currentGame.id && gameState === "creating") {
+          setCurrentGame({
+            id: pollingGameId,
+            player1: player1,
+            player2: player2,
+            player1Committed,
+            player2Committed,
+            finished
+          })
+          setGameIdToShare(pollingGameId.toString())
           setGameState("waiting-for-opponent")
         }
       }
@@ -281,7 +337,7 @@ export function GameInterface() {
       makeMoveWrite({
         args: [
           BigInt(currentGame.id),
-          encryptedMove.handle,
+          encryptedMove.handle as `0x${string}`,
           encryptedMove.proof
         ]
       })

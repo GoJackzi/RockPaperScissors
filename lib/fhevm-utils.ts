@@ -45,7 +45,7 @@ export function moveNameToValue(name: string): Move {
 export async function encryptMove(move: Move, contractAddress: string, userAddress: string) {
   try {
     // Import the relayer SDK dynamically to avoid issues during build
-    const { Relayer } = await import("@zama-fhe/relayer-sdk/dist/index.js")
+    const { Relayer } = await import("@zama-fhe/relayer-sdk/web")
     
     console.log(`[fhEVM] Encrypting move ${move} for contract ${contractAddress}`)
     
@@ -81,7 +81,7 @@ export async function decryptResult(
   userAddress: string
 ): Promise<boolean> {
   try {
-    const { Relayer } = await import("@zama-fhe/relayer-sdk/dist/index.js")
+    const { Relayer } = await import("@zama-fhe/relayer-sdk/web")
     
     console.log(`[fhEVM] Decrypting result for contract ${contractAddress}`)
     
