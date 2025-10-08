@@ -92,19 +92,45 @@ export function GameInterface() {
   const { writeContract: createGameWrite, isPending: isCreatingGame, error: createGameError } = useContractWrite({
     onSuccess: async (data) => {
       console.log('Game created successfully:', data)
-      // Set up temporary state while waiting for transaction confirmation
-      setGameState("creating")
-      setIsPlayer1(true)
       
-      // Set up a temporary game state - the real game ID will be detected via polling
-      setCurrentGame({
-        id: null, // Will be detected via polling
-        player1: address,
-        player2: null,
-        player1Committed: false,
-        player2Committed: false,
-        finished: false
-      })
+      // Wait for transaction to be mined and get the receipt
+      try {
+        const receipt = await data.wait()
+        console.log('Transaction receipt:', receipt)
+        
+        // Get the game ID from the transaction logs
+        // The createGame function returns the game ID, so we need to decode it from the logs
+        if (receipt.logs && receipt.logs.length > 0) {
+          // Look for the GameCreated event
+          for (const log of receipt.logs) {
+            try {
+              // Decode the event data to get the game ID
+              // GameCreated event has: (uint256 indexed gameId, address indexed player1)
+              const gameId = BigInt(log.topics[1]) // First indexed parameter
+              console.log('Found game ID from logs:', gameId.toString())
+              
+              setGameState("waiting-for-opponent")
+              setIsPlayer1(true)
+              setCurrentGame({
+                id: Number(gameId),
+                player1: address,
+                player2: null,
+                player1Committed: false,
+                player2Committed: false,
+                finished: false
+              })
+              setGameIdToShare(gameId.toString())
+              break
+            } catch (decodeError) {
+              console.log('Could not decode log:', decodeError)
+              continue
+            }
+          }
+        }
+      } catch (waitError) {
+        console.error('Error waiting for transaction:', waitError)
+        setGameState("menu")
+      }
     },
     onError: (error) => {
       console.error('Failed to create game:', error)
@@ -185,65 +211,7 @@ export function GameInterface() {
     }
   })
 
-  // Poll for newly created games when we're in "creating" state
-  const [pollingGameId, setPollingGameId] = useState<number | null>(null)
-  
-  useEffect(() => {
-    if (gameState === "creating" && address && !currentGame.id) {
-      // Start polling for games created by this user
-      const pollForNewGame = async () => {
-        try {
-          // Try to find a recent game created by this user
-          // We'll check game IDs starting from 0 up to a reasonable number
-          for (let gameId = 0; gameId < 1000; gameId++) {
-            try {
-              // This will be called by wagmi's useContractRead
-              // We just need to trigger the polling
-              if (!pollingGameId) {
-                setPollingGameId(gameId)
-                break
-              }
-            } catch (error) {
-              // Game doesn't exist, continue
-              continue
-            }
-          }
-        } catch (error) {
-          console.error('Error polling for new game:', error)
-        }
-      }
-      
-      const interval = setInterval(pollForNewGame, 2000) // Poll every 2 seconds
-      return () => clearInterval(interval)
-    }
-  }, [gameState, address, currentGame.id, pollingGameId])
-
-  // Check if the polling game ID is a game created by us
-  const { data: pollingGameData } = useContractRead({
-    address: CONTRACT_ADDRESS,
-    abi: CONTRACT_ABI,
-    functionName: 'getGame',
-    args: pollingGameId ? [BigInt(pollingGameId)] : undefined,
-    enabled: !!pollingGameId,
-    onSuccess: (data) => {
-      if (data && pollingGameId) {
-        const [player1, player2, player1Committed, player2Committed, finished] = data
-        // If this game is created by us and we don't have a current game ID
-        if (player1 === address && !currentGame.id && gameState === "creating") {
-          setCurrentGame({
-            id: pollingGameId,
-            player1: player1,
-            player2: player2,
-            player1Committed,
-            player2Committed,
-            finished
-          })
-          setGameIdToShare(pollingGameId.toString())
-          setGameState("waiting-for-opponent")
-        }
-      }
-    }
-  })
+  // Removed complex polling logic - now using transaction receipt to get Game ID directly
 
   const moves = [
     { id: "rock", name: "Rock", icon: Hand, value: 0 },
@@ -269,15 +237,7 @@ export function GameInterface() {
   }, [isConnected])
 
   const handleCreateGame = async () => {
-    console.log('=== CREATE GAME DEBUG ===')
-    console.log('Address:', address)
-    console.log('Is Connected:', isConnected)
-    console.log('Contract address:', CONTRACT_ADDRESS)
-    console.log('Chain ID:', process.env.NEXT_PUBLIC_CHAIN_ID)
-    console.log('Game State:', gameState)
-    
     if (!address) {
-      console.error('No address available!')
       alert('No wallet address found. Please connect your wallet.')
       return
     }
@@ -285,7 +245,6 @@ export function GameInterface() {
     setGameState("creating")
     try {
       // Call smart contract to create game
-      console.log('Calling createGameWrite...')
       createGameWrite({
         address: CONTRACT_ADDRESS,
         abi: CONTRACT_ABI,
@@ -430,10 +389,7 @@ export function GameInterface() {
                   Start a new game and share the Game ID with your opponent
                 </p>
                 <Button 
-                  onClick={() => {
-                    console.log('Button clicked!')
-                    handleCreateGame()
-                  }} 
+                  onClick={handleCreateGame} 
                   className="w-full" 
                   size="lg"
                   disabled={isCreatingGame}
