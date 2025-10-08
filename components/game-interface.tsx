@@ -45,7 +45,7 @@ const CONTRACT_ABI = [
     "inputs": [
       {"internalType": "uint256", "name": "gameId", "type": "uint256"},
       {"internalType": "bytes", "name": "encryptedMove", "type": "bytes"},
-      {"internalType": "bytes", "name": "proof", "type": "bytes"}
+      {"internalType": "bytes", "name": "inputProof", "type": "bytes"}
     ],
     "name": "makeMove",
     "outputs": [],
@@ -89,27 +89,29 @@ export function GameInterface() {
   const [copied, setCopied] = useState(false)
 
   // Wagmi hooks for contract interactions
-  const { write: createGameWrite, isLoading: isCreatingGame } = useContractWrite({
+  const { write: createGameWrite, isLoading: isCreatingGame, error: createGameError } = useContractWrite({
     address: CONTRACT_ADDRESS,
     abi: CONTRACT_ABI,
     functionName: 'createGame',
     onSuccess: async (data) => {
       console.log('Game created successfully:', data)
-      // Wait for transaction to be mined and get the game ID
+      // The transaction was submitted, now we need to wait for it to be mined
+      // and get the actual game ID from the transaction receipt
       try {
-        // For now, we'll use a temporary game ID and let the polling handle the real state
-        const tempGameId = Math.floor(Math.random() * 1000000)
+        // For now, set up a temporary state while we wait for the transaction
+        setGameState("creating")
+        setIsPlayer1(true)
+        
+        // TODO: Parse the transaction receipt to get the actual game ID
+        // For now, we'll use a placeholder that will be updated by polling
         setCurrentGame({
-          id: tempGameId,
+          id: 0, // Will be updated when transaction is mined
           player1: address,
           player2: null,
           player1Committed: false,
           player2Committed: false,
           finished: false
         })
-        setGameIdToShare(tempGameId.toString())
-        setIsPlayer1(true)
-        setGameState("waiting-for-opponent")
       } catch (error) {
         console.error('Error setting up game:', error)
         setGameState("menu")
@@ -117,6 +119,7 @@ export function GameInterface() {
     },
     onError: (error) => {
       console.error('Failed to create game:', error)
+      console.error('Create game error details:', createGameError)
       setGameState("menu")
     }
   })
@@ -221,6 +224,10 @@ export function GameInterface() {
   const handleCreateGame = async () => {
     if (!address) return
     
+    console.log('Creating game with address:', address)
+    console.log('Contract address:', CONTRACT_ADDRESS)
+    console.log('Chain ID:', process.env.NEXT_PUBLIC_CHAIN_ID)
+    
     setGameState("creating")
     try {
       // Call smart contract to create game
@@ -274,8 +281,8 @@ export function GameInterface() {
       makeMoveWrite({
         args: [
           BigInt(currentGame.id),
-          encryptedMove.handle as `0x${string}`,
-          encryptedMove.proof as `0x${string}`
+          encryptedMove.handle,
+          encryptedMove.proof
         ]
       })
       setSelectedMove(null)
@@ -363,6 +370,11 @@ export function GameInterface() {
                 >
                   {isCreatingGame ? "Creating Game..." : "Create Game"}
                 </Button>
+                {createGameError && (
+                  <div className="mt-2 p-2 bg-red-100 border border-red-300 rounded text-red-700 text-sm">
+                    Error: {createGameError.message}
+                  </div>
+                )}
               </div>
               
               <div className="space-y-4">

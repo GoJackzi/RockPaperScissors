@@ -202,4 +202,30 @@ contract RockPaperScissors is SepoliaConfig {
         Game storage game = games[gameId];
         return game.player1Committed && game.player2Committed;
     }
+    
+    /// @notice Get game information
+    /// @param gameId The ID of the game
+    /// @return player1 Address of player 1
+    /// @return player2 Address of player 2
+    /// @return player1Committed Whether player 1 has committed their move
+    /// @return player2Committed Whether player 2 has committed their move
+    /// @return gameFinished Whether the game is finished
+    function getGame(uint256 gameId) external view returns (
+        address player1,
+        address player2,
+        bool player1Committed,
+        bool player2Committed,
+        bool gameFinished
+    ) {
+        Game storage game = games[gameId];
+        require(game.player1 != address(0), "Game does not exist");
+        
+        return (
+            game.player1,
+            game.player2,
+            game.player1Committed,
+            game.player2Committed,
+            game.gameFinished
+        );
+    }
 }
