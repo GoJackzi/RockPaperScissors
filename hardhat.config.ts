@@ -16,7 +16,7 @@ const config: HardhatUserConfig = {
   networks: {
     sepolia: {
       url: process.env.SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com",
-      accounts: ["0xd0a38d481f2d5406763e6769ba05af70ef7d2e6cedaa6dd21ee94720873a1c20"],
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       chainId: 11155111,
       timeout: 60000,
     },
@@ -31,6 +31,3 @@ const config: HardhatUserConfig = {
 
 export default config
 
-export default config
-
-export default config

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAccount, useConnect, useDisconnect, useContractWrite, useContractRead } from "wagmi"
+import { useAccount, useWriteContract, useReadContract } from "wagmi"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -130,78 +130,74 @@ export function GameInterface() {
   const [isPlayer1, setIsPlayer1] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  // Wagmi hooks for contract interactions
-  const { writeContract: createGameWrite, isPending: isCreatingGame, error: createGameError } = useContractWrite({
-    onSuccess: async (data) => {
-      console.log('Game created successfully:', data)
-      
-      // Wait for transaction to be mined
-      try {
-        const receipt = await data.wait()
-        console.log('Transaction confirmed:', receipt.transactionHash)
-        
-        // The polling logic will detect the new game via gameCounter
+  // Wagmi hooks for contract interactions (v2)
+  const { writeContract: createGameWrite, isPending: isCreatingGame, error: createGameError } = useWriteContract({
+    mutation: {
+      onSuccess: async (data) => {
+        console.log('Game created successfully:', data)
         setIsPlayer1(true)
-        
-      } catch (waitError) {
-        console.error('Error waiting for transaction:', waitError)
+        setWaitingForGameCreation(true)
+      },
+      onError: (error) => {
+        console.error('Failed to create game:', error)
         setGameState("menu")
         setWaitingForGameCreation(false)
       }
-    },
-    onError: (error) => {
-      console.error('Failed to create game:', error)
-      console.error('Create game error details:', createGameError)
-      setGameState("menu")
-      setWaitingForGameCreation(false)
     }
   })
 
-  const { writeContract: joinGameWrite, isPending: isJoiningGame } = useContractWrite({
-    onSuccess: (data) => {
-      console.log('Joined game successfully:', data)
-      // Don't set game state here - let the contract polling handle it
-    },
-    onError: (error) => {
-      console.error('Failed to join game:', error)
-      setGameState("menu")
-    }
-  })
-
-  const { writeContract: makeMoveWrite, isPending: isSubmittingMove } = useContractWrite({
-    onSuccess: (data) => {
-      console.log('Move submitted successfully:', data)
-      if (isPlayer1) {
-        setCurrentGame(prev => ({ ...prev, player1Committed: true }))
-      } else {
-        setCurrentGame(prev => ({ ...prev, player2Committed: true }))
+  const { writeContract: joinGameWrite, isPending: isJoiningGame } = useWriteContract({
+    mutation: {
+      onSuccess: (data) => {
+        console.log('Joined game successfully:', data)
+      },
+      onError: (error) => {
+        console.error('Failed to join game:', error)
+        setGameState("menu")
       }
-      setGameState("waiting-for-result")
-    },
-    onError: (error) => {
-      console.error('Failed to submit move:', error)
-      setGameState("waiting-for-move")
     }
   })
 
-  const { writeContract: requestGameResolutionWrite, isPending: isRequestingResolution } = useContractWrite({
-    onSuccess: (data) => {
-      console.log('Game resolution requested successfully:', data)
-      setGameState("waiting-for-result")
-    },
-    onError: (error) => {
-      console.error('Error requesting game resolution:', error)
+  const { writeContract: makeMoveWrite, isPending: isSubmittingMove } = useWriteContract({
+    mutation: {
+      onSuccess: (data) => {
+        console.log('Move submitted successfully:', data)
+        if (isPlayer1) {
+          setCurrentGame(prev => ({ ...prev, player1Committed: true }))
+        } else {
+          setCurrentGame(prev => ({ ...prev, player2Committed: true }))
+        }
+        setGameState("waiting-for-result")
+      },
+      onError: (error) => {
+        console.error('Failed to submit move:', error)
+        setGameState("waiting-for-move")
+      }
+    }
+  })
+
+  const { writeContract: requestGameResolutionWrite, isPending: isRequestingResolution } = useWriteContract({
+    mutation: {
+      onSuccess: (data) => {
+        console.log('Game resolution requested successfully:', data)
+        setGameState("waiting-for-result")
+      },
+      onError: (error) => {
+        console.error('Error requesting game resolution:', error)
+      }
     }
   })
 
   // Poll game state when we have a game ID
-  const { data: gameData, refetch: refetchGame } = useContractRead({
+  const { data: gameData, refetch: refetchGame } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: CONTRACT_ABI,
     functionName: 'getGame',
     args: currentGame.id ? [BigInt(currentGame.id)] : undefined,
-    enabled: !!currentGame.id,
-    watch: true // Auto-refresh every block
+    query: {
+      enabled: !!currentGame.id,
+      refetchInterval: 5000 // Auto-refresh every 5 seconds
+    }
   })
 
   // Handle game data updates without causing infinite loops
@@ -264,12 +260,14 @@ export function GameInterface() {
   const [lastGameCounter, setLastGameCounter] = useState<number | null>(null)
 
   // Get the current game counter to find our game ID
-  const { data: gameCounterData } = useContractRead({
+  const { data: gameCounterData } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: CONTRACT_ABI,
     functionName: 'gameCounter',
-    enabled: waitingForGameCreation,
-    watch: true
+    query: {
+      enabled: waitingForGameCreation,
+      refetchInterval: 2000 // Check every 2 seconds when waiting
+    }
   })
 
   // When we get the game counter, use it to find our game
