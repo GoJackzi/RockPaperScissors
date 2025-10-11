@@ -7,7 +7,7 @@
 [![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000?style=for-the-badge&logo=vercel)](https://encrypted-rock-paper-scissors.vercel.app)
 [![Built with Next.js](https://img.shields.io/badge/Built%20with-Next.js-000000?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![Powered by fhEVM](https://img.shields.io/badge/Powered%20by-fhEVM-FF6B6B?style=for-the-badge)](https://docs.zama.ai)
-[![Sepolia Testnet](https://img.shields.io/badge/Network-Sepolia-627EEA?style=for-the-badge)](https://sepolia.etherscan.io/address/0xdbcd4d2BCd1614CAcDaAe8302dD015455823b1b9)
+[![Sepolia Testnet](https://img.shields.io/badge/Network-Sepolia-627EEA?style=for-the-badge)](https://sepolia.etherscan.io/address/0x19AC891d6d1c91fb835d87Aef919C2F199c0E469)
 
 [🎮 **Play Now**](https://encrypted-rock-paper-scissors.vercel.app) • [📖 **Documentation**](#how-it-works) • [🚀 **Deploy**](#deployment)
 
@@ -206,7 +206,7 @@ Create a `.env.local` file:
 # FHEVM v0.8.1 Configuration - Sepolia
 NEXT_PUBLIC_FHEVM_RELAYER_URL=https://relayer.testnet.zama.cloud
 NEXT_PUBLIC_SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_ALCHEMY_KEY
-NEXT_PUBLIC_CONTRACT_ADDRESS=0xdbcd4d2BCd1614CAcDaAe8302dD015455823b1b9
+NEXT_PUBLIC_CONTRACT_ADDRESS=0x19AC891d6d1c91fb835d87Aef919C2F199c0E469
 NEXT_PUBLIC_CHAIN_ID=11155111
 ```
 
@@ -214,7 +214,7 @@ NEXT_PUBLIC_CHAIN_ID=11155111
 
 | Property | Value |
 |----------|-------|
-| **Contract Address** | [`0xdbcd4d2BCd1614CAcDaAe8302dD015455823b1b9`](https://sepolia.etherscan.io/address/0xdbcd4d2BCd1614CAcDaAe8302dD015455823b1b9) |
+| **Contract Address** | [`0x19AC891d6d1c91fb835d87Aef919C2F199c0E469`](https://sepolia.etherscan.io/address/0x19AC891d6d1c91fb835d87Aef919C2F199c0E469) |
 | **Network** | Sepolia Testnet |
 | **Chain ID** | 11155111 |
 | **Compiler** | Solidity 0.8.24 |
@@ -283,7 +283,7 @@ For Vercel deployment, add these environment variables in your Vercel dashboard:
 ```env
 NEXT_PUBLIC_FHEVM_RELAYER_URL=https://relayer.testnet.zama.cloud
 NEXT_PUBLIC_SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_ALCHEMY_KEY
-NEXT_PUBLIC_CONTRACT_ADDRESS=0xdbcd4d2BCd1614CAcDaAe8302dD015455823b1b9
+NEXT_PUBLIC_CONTRACT_ADDRESS=0x19AC891d6d1c91fb835d87Aef919C2F199c0E469
 NEXT_PUBLIC_CHAIN_ID=11155111
 ```
 

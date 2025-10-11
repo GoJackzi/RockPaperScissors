@@ -33,7 +33,7 @@ const FHEVM_CONFIG = {
   chainId: 11155111, // Sepolia
   relayerUrl: "https://relayer.testnet.zama.cloud",
   rpcUrl: "https://eth-sepolia.g.alchemy.com/v2/RSaO0kH_yHZrcI8-GfcF4YOT3t4bSDpQ",
-  contractAddress: "0xdbcd4d2BCd1614CAcDaAe8302dD015455823b1b9"
+  contractAddress: "0x19AC891d6d1c91fb835d87Aef919C2F199c0E469"
 };
 
 // DEBUG: Log the FHEVM configuration
