@@ -44,25 +44,14 @@ typechain-types/
 
 # OS
 Thumbs.db
-.env*.local
-.env
 
-# Vercel
-.vercel
-
-# Hardhat
-cache/
-artifacts/
-typechain-types/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-Thumbs.db
+# Debug scripts
+check-*.js
+debug-*.js
+test-*.js
+test-*.html
+clear-*.html
+env.example
 .env*.local
 .env
 
