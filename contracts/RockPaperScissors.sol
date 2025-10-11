@@ -151,6 +151,7 @@ contract RockPaperScissors is SepoliaConfig {
     function requestGameResolution(uint256 gameId) external onlyPlayer(gameId) {
         Game storage game = games[gameId];
         require(game.status == GameStatus.MovesCommitted, "Game not ready for resolution");
+        require(game.requestId == 0, "Resolution already requested");
         
         // Determine winner using FHE operations
         euint8 move1 = game.encryptedMove1;

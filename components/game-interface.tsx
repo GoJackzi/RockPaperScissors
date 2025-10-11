@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Hand, Scissors, FileText, Wallet, Copy, CheckCircle } from "lucide-react"
 import { ConnectButton } from "@rainbow-me/rainbowkit"
-import { encryptMove, getGameResult } from "@/lib/fhevm-utils"
+import { encryptMove, getGameResult, setDebugLogger } from "@/lib/fhevm-utils"
 import { parseEther } from "viem"
+import { DebugPanel, useDebugLogs } from "@/components/debug-panel"
 
 type Move = "rock" | "paper" | "scissors" | null
 type GameState = "disconnected" | "menu" | "creating" | "joining" | "waiting-for-opponent" | "waiting-for-move" | "submitting-move" | "waiting-for-result" | "completed"
@@ -26,8 +27,12 @@ interface Game {
   resultsDecrypted: boolean
 }
 
-// Contract configuration
-const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x0C2029036D53B763DFc9e7AADB2A43a911b7a7E5") as `0x${string}`
+// Contract configuration - UPDATED WITH RESOLUTION FIX
+const CONTRACT_ADDRESS = "0x19AC891d6d1c91fb835d87Aef919C2F199c0E469" as `0x${string}`
+
+// DEBUG: Log the contract address being used
+console.log("[DEBUG] Environment variable NEXT_PUBLIC_CONTRACT_ADDRESS:", process.env.NEXT_PUBLIC_CONTRACT_ADDRESS);
+console.log("[DEBUG] Final CONTRACT_ADDRESS being used (HARDCODED):", CONTRACT_ADDRESS);
 const CONTRACT_ABI = [
   {
     "inputs": [],
@@ -112,6 +117,16 @@ const CONTRACT_ABI = [
 export function GameInterface() {
   const { address, isConnected } = useAccount()
   
+  // Debug logging
+  const { logs, addLog, clearLogs } = useDebugLogs()
+  
+  // Set up debug logger for FHEVM utils
+  useEffect(() => {
+    setDebugLogger(addLog)
+    // Add initial log to show the system is working
+    addLog('info', 'ui', 'Game interface initialized', { timestamp: new Date().toISOString() })
+  }, [])
+  
   // Game state
   const [gameState, setGameState] = useState<GameState>("disconnected")
   const [currentGame, setCurrentGame] = useState<Game>({
@@ -181,9 +196,18 @@ export function GameInterface() {
       onSuccess: (data) => {
         console.log('Game resolution requested successfully:', data)
         setGameState("waiting-for-result")
+        // Force a refetch to update the game status
+        refetchGame()
       },
       onError: (error) => {
         console.error('Error requesting game resolution:', error)
+        // If resolution was already requested, that's actually fine
+        if (error.message?.includes('Resolution already requested') || 
+            error.message?.includes('already requested')) {
+          console.log('Resolution already requested by another player, updating UI...')
+          setGameState("waiting-for-result")
+          refetchGame()
+        }
       }
     }
   })
@@ -196,14 +220,84 @@ export function GameInterface() {
     args: currentGame.id ? [BigInt(currentGame.id)] : undefined,
     query: {
       enabled: !!currentGame.id,
-      refetchInterval: 5000 // Auto-refresh every 5 seconds
+      refetchInterval: (data) => {
+        // Poll very frequently when waiting for resolution
+        if (data && data[2] >= 2) { // status >= 2 (MovesCommitted or higher)
+          return 1000 // 1 second for resolution states
+        }
+        return 5000 // 5 seconds for normal states
+      }
     }
   })
+
+  // Fetch game results when game is completed
+  const { data: gameResults, error: gameResultsError } = useReadContract({
+    address: CONTRACT_ADDRESS,
+    abi: CONTRACT_ABI,
+    functionName: 'getGameResults',
+    args: currentGame.id ? [BigInt(currentGame.id)] : undefined,
+    query: {
+      enabled: !!currentGame.id && currentGame.status === 4, // Only fetch when results are decrypted
+      refetchInterval: 3000 // Check every 3 seconds
+    }
+  })
+
+  // Debug: Log game results
+  useEffect(() => {
+    if (currentGame.status === 4 && currentGame.id) {
+      console.log(`[DEBUG] Game ${currentGame.id} results:`, gameResults)
+      console.log(`[DEBUG] Game results error:`, gameResultsError)
+      if (gameResults) {
+        addLog('success', 'game', `Game results fetched: ${JSON.stringify(gameResults)}`, { 
+          gameId: currentGame.id, 
+          results: gameResults 
+        })
+      } else if (gameResultsError) {
+        addLog('error', 'game', `Failed to fetch game results: ${gameResultsError.message}`, { 
+          gameId: currentGame.id, 
+          error: gameResultsError 
+        })
+      }
+    }
+  }, [currentGame.status, currentGame.id, gameResults, gameResultsError])
+
+  // Helper function to get status text
+  const getStatusText = (status: number) => {
+    switch (status) {
+      case 0: return 'WaitingForPlayers'
+      case 1: return 'WaitingForMoves'
+      case 2: return 'MovesCommitted'
+      case 3: return 'DecryptionInProgress'
+      case 4: return 'ResultsDecrypted'
+      default: return `Unknown(${status})`
+    }
+  }
 
   // Handle game data updates without causing infinite loops
   useEffect(() => {
     if (gameData && currentGame.id) {
       const [player1, player2, status, player1Committed, player2Committed, resultsDecrypted] = gameData
+      
+      // Debug: Log status changes
+      if (status !== currentGame.status) {
+        console.log(`[DEBUG] Game ${currentGame.id} status changed: ${currentGame.status} -> ${status} (${getStatusText(status)})`)
+        addLog('info', 'game', `Status changed: ${getStatusText(currentGame.status)} -> ${getStatusText(status)}`, { 
+          gameId: currentGame.id, 
+          oldStatus: currentGame.status,
+          newStatus: status
+        })
+        
+        // Add specific messages for important status changes
+        if (status === 1 && currentGame.status === 0) {
+          addLog('success', 'game', `Player 2 joined game ${currentGame.id}!`, { gameId: currentGame.id, player2: player2 })
+        } else if (status === 2 && currentGame.status === 1) {
+          addLog('info', 'game', `Both players have submitted moves for game ${currentGame.id}`, { gameId: currentGame.id })
+        } else if (status === 3 && currentGame.status === 2) {
+          addLog('info', 'game', `Decryption started for game ${currentGame.id}`, { gameId: currentGame.id })
+        } else if (status === 4 && currentGame.status === 3) {
+          addLog('success', 'game', `Decryption completed for game ${currentGame.id}! Results available.`, { gameId: currentGame.id })
+        }
+      }
       
       // Only update if data has actually changed
       const hasChanged = (
@@ -280,6 +374,9 @@ export function GameInterface() {
         const gameId = currentCounter - 1 // The game we just created
         console.log(`Found new game ID: ${gameId}`)
         
+        addLog('success', 'game', `Game created successfully! Game ID: ${gameId}`, { gameId, counter: currentCounter })
+        addLog('info', 'game', `Waiting for opponent to join game ${gameId}...`)
+        
         setCurrentGame({
           id: gameId,
           player1: address,
@@ -297,6 +394,7 @@ export function GameInterface() {
       } else if (lastGameCounter === null) {
         // First time, just record the current counter
         setLastGameCounter(currentCounter)
+        addLog('info', 'game', `Monitoring game counter: ${currentCounter}`, { counter: currentCounter })
       }
     }
   }, [gameCounterData, waitingForGameCreation, lastGameCounter, address])
@@ -307,10 +405,67 @@ export function GameInterface() {
     { id: "scissors", name: "Scissors", icon: Scissors, value: 2 },
   ]
 
+  // Load game state from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isConnected) {
+      const savedGameId = localStorage.getItem('currentGameId')
+      const savedGameState = localStorage.getItem('gameState')
+      
+      if (savedGameId) {
+        console.log(`[DEBUG] Restoring game ${savedGameId} with state ${savedGameState}`)
+        addLog('info', 'ui', `Restoring game ${savedGameId} from localStorage`, { 
+          gameId: parseInt(savedGameId), 
+          state: savedGameState 
+        })
+        setCurrentGame(prev => ({ ...prev, id: parseInt(savedGameId) }))
+        setGameState(savedGameState as GameState || "waiting-for-result")
+        
+        // Force immediate refetch and then periodic refetches
+        refetchGame()
+        const interval = setInterval(() => {
+          refetchGame()
+        }, 1000) // Check every second
+        
+        // Clear interval after 30 seconds
+        setTimeout(() => clearInterval(interval), 30000)
+      }
+    }
+  }, [isConnected])
+
+  // Save game state to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && currentGame.id) {
+      localStorage.setItem('currentGameId', currentGame.id.toString())
+      localStorage.setItem('gameState', gameState)
+      // Only log when entering waiting-for-result state
+      if (gameState === 'waiting-for-result') {
+        addLog('info', 'ui', `Game state saved to localStorage`, { gameId: currentGame.id, state: gameState })
+      }
+    } else if (typeof window !== 'undefined' && gameState === 'menu') {
+      // Clear saved state when returning to menu
+      localStorage.removeItem('currentGameId')
+      localStorage.removeItem('gameState')
+    }
+  }, [currentGame.id, gameState])
+  
+  // Log game state changes
+  useEffect(() => {
+    addLog('info', 'game', `Game state changed to: ${gameState}`, { 
+      gameId: currentGame.id, 
+      player1: currentGame.player1, 
+      player2: currentGame.player2,
+      status: currentGame.status 
+    })
+  }, [gameState, currentGame.id, currentGame.player1, currentGame.player2, currentGame.status])
+
   // Update game state when wallet connects/disconnects
   useEffect(() => {
     if (isConnected) {
-      setGameState("menu")
+      // Only set to menu if no saved game state
+      const savedGameId = localStorage.getItem('currentGameId')
+      if (!savedGameId) {
+        setGameState("menu")
+      }
     } else {
       setGameState("disconnected")
       setCurrentGame({
@@ -319,8 +474,15 @@ export function GameInterface() {
         player2: null,
         player1Committed: false,
         player2Committed: false,
-        finished: false
+        finished: false,
+        status: 0,
+        resultsDecrypted: false
       })
+      // Clear localStorage when disconnecting
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('currentGameId')
+        localStorage.removeItem('gameState')
+      }
     }
   }, [isConnected])
 
@@ -336,6 +498,8 @@ export function GameInterface() {
       return
     }
     
+    addLog('info', 'game', 'Starting game creation process...', { userAddress: address })
+    addLog('info', 'blockchain', 'Creating new game...', { userAddress: address })
     setGameState("creating")
     setWaitingForGameCreation(true)
     setLastGameCounter(null)
@@ -347,7 +511,11 @@ export function GameInterface() {
         abi: CONTRACT_ABI,
         functionName: 'createGame'
       })
+      addLog('success', 'blockchain', 'Game creation transaction submitted')
+      addLog('info', 'game', 'Waiting for game creation confirmation...')
     } catch (error) {
+      addLog('error', 'blockchain', 'Failed to create game', { error: error instanceof Error ? error.message : String(error) })
+      addLog('error', 'game', 'Game creation failed, returning to menu')
       console.error("Failed to create game:", error)
       setGameState("menu")
       setWaitingForGameCreation(false)
@@ -357,10 +525,12 @@ export function GameInterface() {
   const handleJoinGame = async () => {
     if (!address || !gameIdInput) return
     
+    const gameId = parseInt(gameIdInput)
+    addLog('info', 'game', `Starting to join game ${gameId}...`, { gameId, userAddress: address })
+    addLog('info', 'blockchain', `Joining game ${gameId}...`, { gameId, userAddress: address })
+    
     setGameState("joining")
     try {
-      const gameId = parseInt(gameIdInput)
-      
       // Set up game state first
       setCurrentGame({
         id: gameId,
@@ -382,7 +552,11 @@ export function GameInterface() {
         functionName: 'joinGame',
         args: [BigInt(gameId)]
       })
+      addLog('success', 'blockchain', `Join game transaction submitted for game ${gameId}`)
+      addLog('info', 'game', `Waiting for join confirmation...`)
     } catch (error) {
+      addLog('error', 'blockchain', `Failed to join game ${gameId}`, { error: error instanceof Error ? error.message : String(error) })
+      addLog('error', 'game', 'Join game failed, returning to menu')
       console.error("Failed to join game:", error)
       setGameState("menu")
     }
@@ -391,15 +565,27 @@ export function GameInterface() {
   const handleSubmitMove = async () => {
     if (!selectedMove || !address || !currentGame.id) return
     
+    const moveValue = moves.find(m => m.id === selectedMove)?.value
+    if (moveValue === undefined) return
+    
+    addLog('info', 'game', `Submitting move: ${selectedMove} (${moveValue})`, { 
+      gameId: currentGame.id, 
+      move: selectedMove, 
+      value: moveValue,
+      userAddress: address 
+    })
+    
     setGameState("submitting-move")
     try {
-      const moveValue = moves.find(m => m.id === selectedMove)?.value
-      if (moveValue === undefined) return
-      
       // Encrypt the move using FHE
       const contractAddress = CONTRACT_ADDRESS
       console.log(`[Game] Using contract address: ${contractAddress}`)
       const encryptedMove = await encryptMove(moveValue as 0 | 1 | 2, contractAddress, address)
+      
+      addLog('success', 'blockchain', 'Move encryption completed, submitting to contract', { 
+        gameId: currentGame.id,
+        ciphertext: encryptedMove.ciphertext.substring(0, 20) + '...'
+      })
       
       // Call smart contract to submit encrypted move
       makeMoveWrite({
@@ -408,12 +594,17 @@ export function GameInterface() {
         functionName: 'makeMove',
         args: [
           BigInt(currentGame.id),
-          encryptedMove.handle as `0x${string}`,
+          encryptedMove.ciphertext as `0x${string}`,
           encryptedMove.proof
         ]
       })
       setSelectedMove(null)
     } catch (error) {
+      addLog('error', 'game', 'Failed to submit move', { 
+        error: error instanceof Error ? error.message : String(error),
+        gameId: currentGame.id,
+        move: selectedMove
+      })
       console.error("Failed to submit move:", error)
       setGameState(isPlayer1 ? "waiting-for-opponent" : "waiting-for-move")
     }
@@ -421,6 +612,8 @@ export function GameInterface() {
 
   const handleRequestGameResolution = async () => {
     if (!currentGame.id) return
+
+    addLog('info', 'blockchain', 'Requesting game resolution...', { gameId: currentGame.id })
 
     try {
       // Request game resolution (triggers FHE decryption)
@@ -431,7 +624,13 @@ export function GameInterface() {
         args: [BigInt(currentGame.id)]
       })
       
+      addLog('success', 'blockchain', 'Game resolution request submitted', { gameId: currentGame.id })
+      
     } catch (error) {
+      addLog('error', 'blockchain', 'Failed to request game resolution', { 
+        error: error instanceof Error ? error.message : String(error),
+        gameId: currentGame.id
+      })
       console.error('Error requesting game resolution:', error)
     }
   }
@@ -470,25 +669,32 @@ export function GameInterface() {
   // Show wallet connection if not connected
   if (gameState === "disconnected") {
     return (
-      <Card className="border-2">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wallet className="w-5 h-5" />
-            Connect Your Wallet
-          </CardTitle>
-          <CardDescription>
-            Connect your wallet to start playing encrypted Rock Paper Scissors
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center gap-4 py-8">
-            <ConnectButton />
-            <p className="text-sm text-muted-foreground text-center">
-              Make sure you're connected to the Sepolia network and have some test ETH
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Card className="border-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wallet className="w-5 h-5" />
+              Connect Your Wallet
+            </CardTitle>
+            <CardDescription>
+              Connect your wallet to start playing encrypted Rock Paper Scissors
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col items-center gap-4 py-8">
+              <ConnectButton />
+              <p className="text-sm text-muted-foreground text-center">
+                Make sure you're connected to the Sepolia network and have some test ETH
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Game Process Monitor - Always visible */}
+        <div className="mt-6">
+          <DebugPanel logs={logs} onClearLogs={clearLogs} />
+        </div>
+      </div>
     )
   }
 
@@ -552,6 +758,11 @@ export function GameInterface() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Game Process Monitor - Always visible */}
+        <div className="mt-6">
+          <DebugPanel logs={logs} onClearLogs={clearLogs} />
+        </div>
       </div>
     )
   }
@@ -559,78 +770,92 @@ export function GameInterface() {
   // Show waiting for opponent screen
   if (gameState === "waiting-for-opponent") {
     return (
-      <Card className="border-2">
-        <CardHeader>
-          <CardTitle>Game Created! 🎮</CardTitle>
-          <CardDescription>
-            Share this Game ID with your opponent to start playing
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            <div className="flex items-center justify-center gap-4 p-6 bg-primary/10 rounded-lg border border-primary/20">
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground mb-2">Your Game ID</p>
-                <div className="flex items-center gap-2">
-                  <span className="text-3xl font-bold text-primary">#{gameIdToShare}</span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={copyGameId}
-                    className="flex items-center gap-1"
-                  >
-                    {copied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                    {copied ? "Copied!" : "Copy"}
-                  </Button>
+      <div className="space-y-6">
+        <Card className="border-2">
+          <CardHeader>
+            <CardTitle>Game Created! 🎮</CardTitle>
+            <CardDescription>
+              Share this Game ID with your opponent to start playing
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              <div className="flex items-center justify-center gap-4 p-6 bg-primary/10 rounded-lg border border-primary/20">
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground mb-2">Your Game ID</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-3xl font-bold text-primary">#{gameIdToShare}</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={copyGameId}
+                      className="flex items-center gap-1"
+                    >
+                      {copied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      {copied ? "Copied!" : "Copy"}
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
-            
-            <div className="text-center space-y-2">
-              <p className="text-sm text-muted-foreground">
-                Waiting for your opponent to join...
-              </p>
-              <div className="flex items-center justify-center gap-2">
-                <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
-                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+              
+              <div className="text-center space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Waiting for your opponent to join...
+                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+                </div>
               </div>
+              
+              <Button onClick={resetGame} variant="outline" className="w-full">
+                Cancel Game
+              </Button>
             </div>
-            
-            <Button onClick={resetGame} variant="outline" className="w-full">
-              Cancel Game
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        {/* Game Process Monitor - Always visible */}
+        <div className="mt-6">
+          <DebugPanel logs={logs} onClearLogs={clearLogs} />
+        </div>
+      </div>
     )
   }
 
   // Show creating state with notification
   if (gameState === "creating") {
     return (
-      <Card className="border-2">
-        <CardHeader>
-          <CardTitle>Creating Game...</CardTitle>
-          <CardDescription>
-            Please wait while we create your game on the blockchain
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center space-y-4">
-            <div className="flex items-center justify-center gap-2">
-              <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-              <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
-              <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+      <div className="space-y-6">
+        <Card className="border-2">
+          <CardHeader>
+            <CardTitle>Creating Game...</CardTitle>
+            <CardDescription>
+              Please wait while we create your game on the blockchain
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center space-y-4">
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+              </div>
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-700">
+                  ⏱️ <strong>Note:</strong> Game ID detection may take up to 1 minute. Please be patient while the blockchain processes your transaction.
+                </p>
+              </div>
             </div>
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-xs text-blue-700">
-                ⏱️ <strong>Note:</strong> Game ID detection may take up to 1 minute. Please be patient while the blockchain processes your transaction.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        {/* Game Process Monitor - Always visible */}
+        <div className="mt-6">
+          <DebugPanel logs={logs} onClearLogs={clearLogs} />
+        </div>
+      </div>
     )
   }
 
@@ -720,10 +945,10 @@ export function GameInterface() {
                 </div>
               ) : (
                   <p className="text-sm text-muted-foreground">No move yet</p>
-                )}
+                      )}
+                    </div>
+                  </div>
                 </div>
-            </div>
-          </div>
         </CardContent>
       </Card>
 
@@ -810,6 +1035,160 @@ export function GameInterface() {
                     {isRequestingResolution ? "Requesting Resolution..." : "Resolve Game"}
                   </Button>
                 </div>
+              ) : currentGame.status === 3 ? (
+                // Decryption in progress
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                    <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                    <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                  </div>
+                  <p className="text-yellow-600 font-semibold">Decryption in progress...</p>
+                  <p className="text-sm text-muted-foreground">
+                    FHEVM is decrypting the results. This may take a few moments.
+                  </p>
+                  <div className="mt-4 space-y-2">
+                    <Button 
+                      onClick={() => {
+                        console.log(`[DEBUG] Manual status check for game ${currentGame.id}`)
+                        addLog('info', 'blockchain', 'Manual status check requested', { gameId: currentGame.id })
+                        refetchGame()
+                      }}
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
+                    >
+                      Check Status
+                    </Button>
+                    <div className="text-xs text-muted-foreground text-center space-y-1">
+                      <p>If stuck for more than 2 minutes, try checking status manually</p>
+                      <p className="text-yellow-500">⚠️ FHEVM decryption may be slow or failing</p>
+                      <p>Status: {currentGame.status} (DecryptionInProgress)</p>
+                    </div>
+                  </div>
+                </div>
+              ) : currentGame.status === 4 ? (
+                // Results decrypted - show game results
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center gap-2">
+                    <CheckCircle className="w-6 h-6 text-green-500" />
+                    <CheckCircle className="w-6 h-6 text-green-500" />
+                    <CheckCircle className="w-6 h-6 text-green-500" />
+                  </div>
+                  <p className="text-green-600 font-semibold text-lg">Game Complete!</p>
+                  {gameResults && (
+                    <div className="text-center">
+                      <div className={`text-2xl font-bold ${
+                        gameResults[0] ? 'text-yellow-600' : 
+                        gameResults[1] ? 'text-blue-600' : 'text-red-600'
+                      }`}>
+                        {gameResults[0] ? '🎯 IT\'S A DRAW!' : 
+                         gameResults[1] ? '🏆 PLAYER 1 WINS!' : '🏆 PLAYER 2 WINS!'}
+                      </div>
+                    </div>
+                  )}
+                  <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                    <p className="text-sm text-muted-foreground">Results have been decrypted:</p>
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">Player 1:</span>
+                      <span className="text-primary">Move submitted</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">Player 2:</span>
+                      <span className="text-primary">Move submitted</span>
+                    </div>
+                    <div className="border-t pt-2 mt-2">
+                      {gameResults ? (
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="font-semibold">Result:</span>
+                            <span className={`font-bold text-lg ${
+                              gameResults[0] ? 'text-yellow-600' : 
+                              gameResults[1] ? 'text-blue-600' : 'text-red-600'
+                            }`}>
+                              {gameResults[0] ? '🎯 DRAW!' : 
+                               gameResults[1] ? '🏆 PLAYER 1 WINS!' : '🏆 PLAYER 2 WINS!'}
+                            </span>
+                          </div>
+                          {!gameResults[0] && gameResults[2] && gameResults[2] !== '0x0000000000000000000000000000000000000000' && (
+                            <div className="flex justify-between items-center">
+                              <span className="font-medium">Winner:</span>
+                              <span className="text-primary font-mono text-sm">
+                                {gameResults[2] === currentGame.player1 ? 'Player 1' : 'Player 2'}
+                              </span>
+                            </div>
+                          )}
+                          <div className="text-xs text-muted-foreground mt-2">
+                            <p>Game ID: {currentGame.id}</p>
+                            <p>Status: {currentGame.status} (ResultsDecrypted)</p>
+                            <p>Raw Results: isDraw={String(gameResults[0])}, player1Wins={String(gameResults[1])}, winner={gameResults[2]}</p>
+                            <p className="text-green-400">
+                              {gameResults[0] ? 'Result: Draw (both players chose the same move)' :
+                               gameResults[1] ? 'Result: Player 1 won the game' : 'Result: Player 2 won the game'}
+                            </p>
+                          </div>
+                        </div>
+                      ) : gameResultsError ? (
+                        <div className="text-center py-2">
+                          <p className="text-red-500 text-sm">Error loading results</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {gameResultsError.message}
+                          </p>
+                          <Button 
+                            onClick={() => refetchGame()}
+                            size="sm"
+                            variant="outline"
+                            className="mt-2"
+                          >
+                            Retry
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="font-semibold">Result:</span>
+                            <span className="text-green-600 font-semibold">
+                              Loading results...
+                            </span>
+                          </div>
+                          <Button 
+                            onClick={() => refetchGame()}
+                            size="sm"
+                            variant="outline"
+                            className="w-full"
+                          >
+                            Refresh Results
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={() => {
+                      addLog('info', 'ui', 'User clicked Play Again', { gameId: currentGame.id })
+                      setGameState("menu")
+                      setCurrentGame({
+                        id: null,
+                        player1: null,
+                        player2: null,
+                        player1Committed: false,
+                        player2Committed: false,
+                        finished: false,
+                        status: 0,
+                        resultsDecrypted: false
+                      })
+                      // Clear localStorage when starting new game
+                      if (typeof window !== 'undefined') {
+                        localStorage.removeItem('currentGameId')
+                        localStorage.removeItem('gameState')
+                      }
+                    }}
+                    className="w-full"
+                    variant="outline"
+                  >
+                    🎮 Play Again
+                  </Button>
+                </div>
               ) : (
                 // Still waiting for moves
                 <div className="space-y-4">
@@ -828,6 +1207,13 @@ export function GameInterface() {
           </CardContent>
         </Card>
       )}
+
+      {/* Game Process Logs - Always visible below game interface */}
+      <div className="mt-6">
+        <DebugPanel logs={logs} onClearLogs={clearLogs} />
+      </div>
+
     </div>
   )
 }
+

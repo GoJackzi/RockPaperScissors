@@ -23,22 +23,6 @@ export function Header() {
             <span className="font-bold text-lg">FHE Powered Game</span>
           </div>
 
-          <nav className="hidden md:flex items-center gap-6">
-            <a href="#how-it-works" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              How it Works
-            </a>
-            <a href="#about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              About FHEVM
-            </a>
-            <a
-              href="https://docs.zama.ai"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Docs
-            </a>
-          </nav>
 
           {isConnected && address ? (
             <Button 
