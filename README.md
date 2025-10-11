@@ -4,7 +4,7 @@
 
 **A privacy-preserving Rock Paper Scissors game powered by Zama's fhEVM technology**
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000?style=for-the-badge&logo=vercel)](https://encrypted-rock-paper-scissors.vercel.app)
+[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000?style=for-the-badge&logo=vercel)](https://rps-fhe.vercel.app/)
 [![Built with Next.js](https://img.shields.io/badge/Built%20with-Next.js-000000?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![Powered by fhEVM](https://img.shields.io/badge/Powered%20by-fhEVM-FF6B6B?style=for-the-badge)](https://docs.zama.ai)
 [![Sepolia Testnet](https://img.shields.io/badge/Network-Sepolia-627EEA?style=for-the-badge)](https://sepolia.etherscan.io/address/0x19AC891d6d1c91fb835d87Aef919C2F199c0E469)
