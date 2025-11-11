@@ -98,15 +98,25 @@ async function initializeFHEVM(): Promise<any> {
     console.log("[FHEVM v0.9] Initializing SDK...");
 
     // Dynamic import to avoid SSR issues
-    const { createInstance, SepoliaConfig } = await import("@zama-fhe/relayer-sdk/web");
+    const { initSDK, createInstance, SepoliaConfig } = await import("@zama-fhe/relayer-sdk/bundle");
+
+    // CRITICAL: Must call initSDK() first to load WASM before creating instance
+    // Reference: https://docs.zama.org/protocol/relayer-sdk-guides/v0.1/development-guide/webapp
+    console.log("[FHEVM v0.9] Loading WASM with initSDK()...");
+    await initSDK();
+    console.log("[FHEVM v0.9] WASM loaded successfully");
 
     // Use SepoliaConfig directly from the SDK (recommended approach)
-    // This ensures we're using the exact configuration maintained by Zama
+    // Add network provider from window.ethereum
+    const config = {
+      ...SepoliaConfig,
+      network: (window as any).ethereum
+    };
     console.log("[FHEVM v0.9] Using SepoliaConfig from SDK");
-    console.log("[DEBUG] SepoliaConfig:", SepoliaConfig);
+    console.log("[DEBUG] Config:", config);
 
     // Create fresh FHEVM instance with SepoliaConfig
-    const fhevmInstance = await createInstance(SepoliaConfig);
+    const fhevmInstance = await createInstance(config);
     log('success', 'fhevm', 'FHEVM v0.9 instance created with SepoliaConfig');
     console.log("[FHEVM v0.9] Instance created successfully");
 
