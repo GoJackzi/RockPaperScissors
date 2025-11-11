@@ -588,7 +588,8 @@ export function GameInterface() {
       })
       
       // Call smart contract to submit encrypted move
-      // Set explicit gas limit to avoid exceeding Sepolia's cap (16,777,216)
+      // Set explicit gas limit for FHE operations (v0.9 requires more gas)
+      // Sepolia cap is 16,777,216, using 15M to be safe
       makeMoveWrite({
         address: CONTRACT_ADDRESS,
         abi: CONTRACT_ABI,
@@ -598,7 +599,7 @@ export function GameInterface() {
           encryptedMove.ciphertext as `0x${string}`,
           encryptedMove.proof
         ],
-        gas: BigInt(10000000) // 10M gas - well below Sepolia's 16.7M cap
+        gas: BigInt(15000000) // 15M gas - FHE.fromExternal needs significant gas
       })
       setSelectedMove(null)
     } catch (error) {
