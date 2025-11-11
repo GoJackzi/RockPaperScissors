@@ -102,8 +102,9 @@ async function initializeFHEVM(): Promise<any> {
 
     // For v0.9, create configuration with required contract addresses
     // Property names from FhevmInstanceConfig type definition in @zama-fhe/relayer-sdk
+    // Configuration matches official Zama docs: https://docs.zama.org/protocol/relayer-sdk-guides/v0.1/fhevm-relayer/initialization
     const config = {
-      chainId: FHEVM_CONFIG.chainId,
+      chainId: FHEVM_CONFIG.chainId, // Sepolia: 11155111
       network: typeof window !== 'undefined' && (window as any).ethereum
         ? (window as any).ethereum
         : FHEVM_CONFIG.rpcUrl,
@@ -114,7 +115,7 @@ async function initializeFHEVM(): Promise<any> {
       inputVerifierContractAddress: "0xbc91f3daD1A5F19F8390c400196e58073B6a0BC4",
       verifyingContractAddressDecryption: "0xb6E160B1ff80D67Bfe90A85eE06Ce0A2613607D1",
       verifyingContractAddressInputVerification: "0x7048C39f048125eDa9d678AEbaDfB22F7900a29F",
-      gatewayChainId: FHEVM_CONFIG.chainId, // Same as chainId for Sepolia
+      gatewayChainId: 55815, // Gateway chain ID (different from Sepolia chainId)
     };
 
     console.log("[FHEVM v0.9] Configuration:", config);
