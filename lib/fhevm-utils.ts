@@ -100,8 +100,7 @@ async function initializeFHEVM(): Promise<any> {
     // Dynamic import to avoid SSR issues
     const { createInstance } = await import("@zama-fhe/relayer-sdk/web");
 
-    // For v0.9, we don't need initSDK() - it's been removed
-    // Create configuration for v0.9
+    // For v0.9, create configuration with required contract addresses
     const config = {
       chainId: FHEVM_CONFIG.chainId,
       network: typeof window !== 'undefined' && (window as any).ethereum
@@ -109,6 +108,11 @@ async function initializeFHEVM(): Promise<any> {
         : FHEVM_CONFIG.rpcUrl,
       relayerUrl: FHEVM_CONFIG.relayerUrl,
       gatewayUrl: FHEVM_CONFIG.relayerUrl,
+      // FHEVM v0.9 Sepolia contract addresses (from official Zama docs)
+      kmsVerifier: "0x1364cBBf2cDF5032C47d8226a6f6FBD2AFCDacAC",
+      acl: "0x687820221192C5B662b25367F70076A37bc79b6c",
+      fhevmExecutor: "0x848B0066793BcC60346Da1F49049357399B8D595",
+      inputVerifier: "0xbc91f3daD1A5F19F8390c400196e58073B6a0BC4",
     };
 
     console.log("[FHEVM v0.9] Configuration:", config);
