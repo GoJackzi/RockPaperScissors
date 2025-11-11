@@ -98,7 +98,8 @@ async function initializeFHEVM(): Promise<any> {
     console.log("[FHEVM v0.9] Initializing SDK...");
 
     // Dynamic import to avoid SSR issues
-    const { initSDK, createInstance, SepoliaConfig } = await import("@zama-fhe/relayer-sdk/bundle");
+    // Import from /web (not /bundle) for Next.js compatibility
+    const { initSDK, createInstance, SepoliaConfig } = await import("@zama-fhe/relayer-sdk/web");
 
     // CRITICAL: Must call initSDK() first to load WASM before creating instance
     // Reference: https://docs.zama.org/protocol/relayer-sdk-guides/v0.1/development-guide/webapp
