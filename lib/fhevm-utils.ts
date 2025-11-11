@@ -101,24 +101,20 @@ async function initializeFHEVM(): Promise<any> {
     const { createInstance } = await import("@zama-fhe/relayer-sdk/web");
 
     // For v0.9, create configuration with required contract addresses
+    // Property names from FhevmInstanceConfig type definition in @zama-fhe/relayer-sdk
     const config = {
       chainId: FHEVM_CONFIG.chainId,
       network: typeof window !== 'undefined' && (window as any).ethereum
         ? (window as any).ethereum
         : FHEVM_CONFIG.rpcUrl,
       relayerUrl: FHEVM_CONFIG.relayerUrl,
-      gatewayUrl: FHEVM_CONFIG.relayerUrl,
       // FHEVM v0.9 Sepolia contract addresses (from official Zama docs)
-      // Try multiple possible property names for KMS
-      kmsVerifierAddress: "0x1364cBBf2cDF5032C47d8226a6f6FBD2AFCDacAC",
-      kmsVerifier: "0x1364cBBf2cDF5032C47d8226a6f6FBD2AFCDacAC",
-      kms: "0x1364cBBf2cDF5032C47d8226a6f6FBD2AFCDacAC",
-      aclAddress: "0x687820221192C5B662b25367F70076A37bc79b6c",
-      acl: "0x687820221192C5B662b25367F70076A37bc79b6c",
-      fhevmExecutorAddress: "0x848B0066793BcC60346Da1F49049357399B8D595",
-      fhevmExecutor: "0x848B0066793BcC60346Da1F49049357399B8D595",
-      inputVerifierAddress: "0xbc91f3daD1A5F19F8390c400196e58073B6a0BC4",
-      inputVerifier: "0xbc91f3daD1A5F19F8390c400196e58073B6a0BC4",
+      kmsContractAddress: "0x1364cBBf2cDF5032C47d8226a6f6FBD2AFCDacAC",
+      aclContractAddress: "0x687820221192C5B662b25367F70076A37bc79b6c",
+      inputVerifierContractAddress: "0xbc91f3daD1A5F19F8390c400196e58073B6a0BC4",
+      verifyingContractAddressDecryption: "0xb6E160B1ff80D67Bfe90A85eE06Ce0A2613607D1",
+      verifyingContractAddressInputVerification: "0x7048C39f048125eDa9d678AEbaDfB22F7900a29F",
+      gatewayChainId: FHEVM_CONFIG.chainId, // Same as chainId for Sepolia
     };
 
     console.log("[FHEVM v0.9] Configuration:", config);
