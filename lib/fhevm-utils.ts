@@ -28,12 +28,12 @@ function toHex(uint8Array: Uint8Array): string {
     .join('');
 }
 
-// Environment configuration for FHEVM v0.8.1 - TEMPORARILY HARDCODED FOR TESTING
+// Environment configuration for FHEVM v0.9 - TEMPORARILY HARDCODED FOR TESTING
 const FHEVM_CONFIG = {
   chainId: 11155111, // Sepolia
   relayerUrl: "https://relayer.testnet.zama.cloud",
   rpcUrl: "https://eth-sepolia.g.alchemy.com/v2/RSaO0kH_yHZrcI8-GfcF4YOT3t4bSDpQ",
-  contractAddress: "0x19AC891d6d1c91fb835d87Aef919C2F199c0E469"
+  contractAddress: "0x9434AAd18aF442E560C01632798Cf5f8141b2212"
 };
 
 // DEBUG: Log the FHEVM configuration

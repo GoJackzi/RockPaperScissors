@@ -27,8 +27,8 @@ interface Game {
   resultsDecrypted: boolean
 }
 
-// Contract configuration - UPDATED WITH RESOLUTION FIX
-const CONTRACT_ADDRESS = "0x19AC891d6d1c91fb835d87Aef919C2F199c0E469" as `0x${string}`
+// Contract configuration - FHEVM v0.9 Contract Address
+const CONTRACT_ADDRESS = "0x9434AAd18aF442E560C01632798Cf5f8141b2212" as `0x${string}`
 
 // DEBUG: Log the contract address being used
 console.log("[DEBUG] Environment variable NEXT_PUBLIC_CONTRACT_ADDRESS:", process.env.NEXT_PUBLIC_CONTRACT_ADDRESS);
