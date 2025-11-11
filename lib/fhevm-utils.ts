@@ -98,32 +98,16 @@ async function initializeFHEVM(): Promise<any> {
     console.log("[FHEVM v0.9] Initializing SDK...");
 
     // Dynamic import to avoid SSR issues
-    const { createInstance } = await import("@zama-fhe/relayer-sdk/web");
+    const { createInstance, SepoliaConfig } = await import("@zama-fhe/relayer-sdk/web");
 
-    // For v0.9, create configuration with required contract addresses
-    // Property names from FhevmInstanceConfig type definition in @zama-fhe/relayer-sdk
-    // Configuration matches official Zama docs: https://docs.zama.org/protocol/relayer-sdk-guides/v0.1/fhevm-relayer/initialization
-    const config = {
-      chainId: FHEVM_CONFIG.chainId, // Sepolia: 11155111
-      network: typeof window !== 'undefined' && (window as any).ethereum
-        ? (window as any).ethereum
-        : FHEVM_CONFIG.rpcUrl,
-      relayerUrl: FHEVM_CONFIG.relayerUrl,
-      // FHEVM v0.9 Sepolia contract addresses (from official Zama docs)
-      kmsContractAddress: "0x1364cBBf2cDF5032C47d8226a6f6FBD2AFCDacAC",
-      aclContractAddress: "0x687820221192C5B662b25367F70076A37bc79b6c",
-      inputVerifierContractAddress: "0xbc91f3daD1A5F19F8390c400196e58073B6a0BC4",
-      verifyingContractAddressDecryption: "0xb6E160B1ff80D67Bfe90A85eE06Ce0A2613607D1",
-      verifyingContractAddressInputVerification: "0x7048C39f048125eDa9d678AEbaDfB22F7900a29F",
-      gatewayChainId: 55815, // Gateway chain ID (different from Sepolia chainId)
-    };
+    // Use SepoliaConfig directly from the SDK (recommended approach)
+    // This ensures we're using the exact configuration maintained by Zama
+    console.log("[FHEVM v0.9] Using SepoliaConfig from SDK");
+    console.log("[DEBUG] SepoliaConfig:", SepoliaConfig);
 
-    console.log("[FHEVM v0.9] Configuration:", config);
-    console.log("[DEBUG] Relayer endpoint:", FHEVM_CONFIG.relayerUrl);
-
-    // Create fresh FHEVM instance with config
-    const fhevmInstance = await createInstance(config);
-    log('success', 'fhevm', 'FHEVM v0.9 instance created', { config: config.chainId, relayerUrl: config.relayerUrl });
+    // Create fresh FHEVM instance with SepoliaConfig
+    const fhevmInstance = await createInstance(SepoliaConfig);
+    log('success', 'fhevm', 'FHEVM v0.9 instance created with SepoliaConfig');
     console.log("[FHEVM v0.9] Instance created successfully");
 
     return fhevmInstance;
