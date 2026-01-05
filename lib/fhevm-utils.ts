@@ -43,10 +43,6 @@ console.log("  - NEXT_PUBLIC_FHEVM_RELAYER_URL:", process.env.NEXT_PUBLIC_FHEVM_
 console.log("  - NEXT_PUBLIC_SEPOLIA_RPC_URL:", process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL);
 console.log("[DEBUG] FHEVM_CONFIG:", FHEVM_CONFIG);
 
-// Global state for SDK initialization
-let sdkInitialized = false;
-// Removed global fhevmInstance - always create fresh instances
-
 export type Move = 0 | 1 | 2 // 0 = Rock, 1 = Paper, 2 = Scissors
 
 export const MOVE_NAMES: Record<Move, string> = {
@@ -83,12 +79,22 @@ export function moveNameToValue(name: string): Move {
   throw new Error(`Invalid move name: ${name}`)
 }
 
+// Cache the FHEVM instance to avoid recreating it on every encryption
+let cachedFhevmInstance: any = null;
+let sdkInitialized = false;
+
 /**
  * Initialize FHEVM SDK for v0.9
- * Creates a fresh instance for encryption operations
+ * Creates and caches a single instance for encryption operations
  */
 async function initializeFHEVM(): Promise<any> {
   try {
+    // Return cached instance if available
+    if (cachedFhevmInstance) {
+      console.log("[FHEVM v0.9] Using cached instance");
+      return cachedFhevmInstance;
+    }
+
     // Ensure we're in browser environment
     if (typeof window === 'undefined') {
       throw new Error("FHEVM requires browser environment");
@@ -103,9 +109,12 @@ async function initializeFHEVM(): Promise<any> {
 
     // CRITICAL: Must call initSDK() first to load WASM before creating instance
     // Reference: https://docs.zama.org/protocol/relayer-sdk-guides/v0.1/development-guide/webapp
-    console.log("[FHEVM v0.9] Loading WASM with initSDK()...");
-    await initSDK();
-    console.log("[FHEVM v0.9] WASM loaded successfully");
+    if (!sdkInitialized) {
+      console.log("[FHEVM v0.9] Loading WASM with initSDK()...");
+      await initSDK();
+      sdkInitialized = true;
+      console.log("[FHEVM v0.9] WASM loaded successfully");
+    }
 
     // Use SepoliaConfig directly from the SDK (recommended approach)
     // Add network provider from window.ethereum
@@ -116,12 +125,12 @@ async function initializeFHEVM(): Promise<any> {
     console.log("[FHEVM v0.9] Using SepoliaConfig from SDK");
     console.log("[DEBUG] Config:", config);
 
-    // Create fresh FHEVM instance with SepoliaConfig
-    const fhevmInstance = await createInstance(config);
+    // Create FHEVM instance with SepoliaConfig and cache it
+    cachedFhevmInstance = await createInstance(config);
     log('success', 'fhevm', 'FHEVM v0.9 instance created with SepoliaConfig');
-    console.log("[FHEVM v0.9] Instance created successfully");
+    console.log("[FHEVM v0.9] Instance created and cached successfully");
 
-    return fhevmInstance;
+    return cachedFhevmInstance;
   } catch (error) {
     console.error("[FHEVM v0.9] Initialization failed:", error);
     throw new Error(`FHEVM initialization failed: ${error}`);
@@ -211,12 +220,12 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
   } catch (error) {
     log('error', 'fhevm', 'Encryption failed', { error: error instanceof Error ? error.message : String(error) });
     console.error("[FHEVM v0.9] Encryption failed:", error);
-    
+
     // Enhanced error logging for debugging
     if (error instanceof Error) {
       console.error(`[DEBUG] Error message: ${error.message}`);
       console.error(`[DEBUG] Error stack: ${error.stack}`);
-      
+
       // Check for specific relayer errors
       if (error.message.includes("Transaction rejected")) {
         log('error', 'fhevm', 'Relayer rejection detected - possible causes: contract compatibility, authorization, relayer issues, or network problems');
@@ -228,66 +237,94 @@ export async function encryptMove(move: Move, contractAddress: string, userAddre
         console.error(`[DEBUG] 4. Network/RPC connectivity problems`);
       }
     }
-    
+
     throw new Error(`FHE encryption failed: ${error}`);
   }
 }
 
 /**
- * Decrypt result using @zama-fhe/relayer-sdk v0.9
- */
-export async function decryptResult(
-  encryptedResult: any,
-  contractAddress: string,
-  userAddress: string
-): Promise<boolean> {
-  try {
-    console.log(`[FHEVM v0.9] Decrypting result for contract ${contractAddress}`);
-
-    // Get FHEVM instance
-    const instance = await initializeFHEVM();
-
-    // Create decryption request for v0.9
-    const decryptionRequest = instance.createDecryptionRequest(contractAddress, userAddress);
-    decryptionRequest.addBytes32(encryptedResult);
-
-    // Decrypt the result
-    const decryptedResults = await decryptionRequest.decrypt();
-
-    // Extract the boolean result
-    const resultValue = decryptedResults[0];
-
-    console.log(`[FHEVM v0.9] Successfully decrypted result: ${resultValue}`);
-
-    return resultValue === "true" || resultValue === true || resultValue === 1;
-  } catch (error) {
-    console.error("[FHEVM v0.9] Decryption failed:", error);
-    throw new Error(`FHE decryption failed: ${error}`);
-  }
-}
-
-/**
- * Get encrypted result from contract and decrypt it
+ * Decrypt result using @zama-fhe/relayer-sdk v0.3.x publicDecrypt (Self-Relaying)
  */
 export async function getGameResult(
   gameId: number,
   contractAddress: string,
   userAddress: string,
   contractInstance: any
-): Promise<{ isDraw: boolean; player1Wins: boolean }> {
+): Promise<{ isDraw: boolean; player1Wins: boolean; decryptionProof: string }> {
   try {
-    // Get encrypted results from contract
-    const [isDrawEncrypted, player1WinsEncrypted] = await contractInstance.getEncryptedResult(gameId)
-    
-    // Decrypt both results
-    const [isDraw, player1Wins] = await Promise.all([
-      decryptResult(isDrawEncrypted, contractAddress, userAddress),
-      decryptResult(player1WinsEncrypted, contractAddress, userAddress)
-    ])
-    
-    return { isDraw, player1Wins }
+    console.log(`[FHEVM v0.10] Fetching encrypted results for game ${gameId}`);
+
+    // Get FHEVM instance
+    const instance = await initializeFHEVM();
+
+    // Get encrypted handle(s) from contract
+    // The contract returns (ebool, ebool) which are effectively handles (or uint256/bytes32)
+    // We need them as hex strings or Uint8Arrays
+    const [handle1, handle2] = await contractInstance.getEncryptedResult(gameId);
+
+    console.log("[DEBUG] Raw handles from contract:", handle1, handle2);
+
+    // handles are likely returned as BigInt or hex strings. SDK expects string (hex) or Uint8Array.
+    // Ensure they are properly formatted. 
+    // Usually contract calls via Viem/Wagmi return BigInt for uint256.
+    // ebool is uint256 under the hood (or uint8/bool depending on packing).
+    // FHEVM handles are generally uint256. 
+
+    // Convert BigInt to 32-byte hex string
+    const toHandle = (val: any) => {
+      const hex = val.toString(16);
+      return '0x' + hex.padStart(64, '0'); // Pad to 32 bytes (64 hex chars)
+    };
+
+    const h1 = toHandle(handle1);
+    const h2 = toHandle(handle2);
+
+    console.log("[DEBUG] Formatted handles:", h1, h2);
+
+    // Call publicDecrypt from SDK
+    // This will prompt the user to sign EIP-712 request if needed (or Relayer logic)
+    // "publicDecrypt" is correct for "decrypt this for me" in the self-relaying model where the user provides the proof.
+    const result = await instance.publicDecrypt([h1, h2]);
+
+    console.log("[FHEVM v0.10] publicDecrypt result:", result);
+
+    // result.clearValues is an object keyed by handle hex? No, generally an array?
+    // SDK types said `ClearValues` but return type is `PublicDecryptResults`.
+    // Let's assume result.clearValues is a map or simply result handles mapping.
+    // Actually, looking at docs: `publicDecrypt` returns object with `clearValues` map? 
+    // Or just array of values?
+    // Current SDK v0.3.0-8 types: `publicDecrypt(handles: ...): Promise<PublicDecryptResults>`.
+    // PublicDecryptResults = { clearValues: Record<string, ClearValueType>, decryptionProof: string, ... }
+
+    // Extract values
+    const isDrawVal = result.clearValues[h1];
+    const player1WinsVal = result.clearValues[h2];
+
+    // Values might be numbers/bigints/bools. 
+    // For ebool, we expect boolean or 0/1.
+    const isDraw = isDrawVal === true || isDrawVal === 1 || isDrawVal === 1n;
+    const player1Wins = player1WinsVal === true || player1WinsVal === 1 || player1WinsVal === 1n;
+
+    if (isDrawVal === undefined || player1WinsVal === undefined) {
+      throw new Error("Failed to decrypt one or more handles");
+    }
+
+    return {
+      isDraw,
+      player1Wins,
+      decryptionProof: result.decryptionProof // This is the proof we need to send to contract
+    };
   } catch (error) {
-    console.error("Failed to get game result:", error)
-    throw error
+    console.error("[FHEVM v0.10] Decryption failed:", error);
+    throw new Error(`FHE decryption failed: ${error}`);
   }
+}
+
+// Remove the old simple decryptResult which is no longer sufficient
+export async function decryptResult(
+  encryptedResult: any,
+  contractAddress: string,
+  userAddress: string
+): Promise<boolean> {
+  throw new Error("Deprecated function: use getGameResult for self-relaying decryption");
 }

@@ -1,5 +1,7 @@
 import type { HardhatUserConfig } from "hardhat/config"
 import "@nomicfoundation/hardhat-ethers"
+import "dotenv/config"
+// import "@nomicfoundation/hardhat-verify" // Temporarily disabled due to module resolution issue
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -31,6 +33,14 @@ const config: HardhatUserConfig = {
     cache: "./cache",
     artifacts: "./artifacts",
   },
+  /* etherscan: {
+    apiKey: {
+      sepolia: process.env.ETHERSCAN_API_KEY || "",
+    },
+  }, */
+  /* sourcify: {
+    enabled: true,
+  }, */
 }
 
 export default config

@@ -65,7 +65,7 @@ Create `.env.local`:
 ```env
 NEXT_PUBLIC_FHEVM_RELAYER_URL=https://relayer.testnet.zama.cloud
 NEXT_PUBLIC_SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_ALCHEMY_KEY
-NEXT_PUBLIC_CONTRACT_ADDRESS=0x19AC891d6d1c91fb835d87Aef919C2F199c0E469
+NEXT_PUBLIC_CONTRACT_ADDRESS=0x9434AAd18aF442E560C01632798Cf5f8141b2212
 NEXT_PUBLIC_CHAIN_ID=11155111
 ```
 
@@ -74,16 +74,16 @@ Play a game and watch the Game Process Monitor to see FHE in action.
 ## Contract Details
 
 - **Network:** Sepolia Testnet
-- **Address:** `0x19AC891d6d1c91fb835d87Aef919C2F199c0E469`
-- **View on Etherscan:** [Contract Link](https://sepolia.etherscan.io/address/0x19AC891d6d1c91fb835d87Aef919C2F199c0E469)
+- **Address:** `0x9434AAd18aF442E560C01632798Cf5f8141b2212`
+- **View on Etherscan:** [Contract Link](https://sepolia.etherscan.io/address/0x9434AAd18aF442E560C01632798Cf5f8141b2212)
 
 The contract uses Zama's FHEVM library to perform computations on encrypted data (euint8 types for moves, ebool for comparisons).
 
 ## Tech Stack
 
 - Frontend: Next.js 15, React 19, TypeScript
-- Smart Contract: Solidity 0.8.24 with FHEVM
-- Encryption: Zama FHEVM v0.8
+- Smart Contract: Solidity 0.8.24 with FHEVM v0.9
+- Encryption: Zama FHEVM v0.9 (`@fhevm/solidity` v0.9.0, `@zama-fhe/relayer-sdk` v0.2.0)
 - Network: Sepolia testnet
 - Deployment: Vercel
 
