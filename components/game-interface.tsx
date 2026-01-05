@@ -231,6 +231,18 @@ export function GameInterface() {
     }
   })
 
+  const { writeContract: resolveGameWrite, isPending: isResolvingGame } = useWriteContract({
+    mutation: {
+      onSuccess: (txHash) => {
+        addLog('success', 'blockchain', 'Game resolution submitted!', { txHash })
+        refetchGame()
+      },
+      onError: (error) => {
+        addLog('error', 'blockchain', 'Failed to submit resolution', { error: error.message })
+      }
+    }
+  })
+
   // Poll game state when we have a game ID
   const { data: gameData, refetch: refetchGame } = useReadContract({
     address: CONTRACT_ADDRESS,
@@ -802,6 +814,30 @@ export function GameInterface() {
     }
   }
 
+  const handleRequestGameResolution = async () => {
+    if (currentGame.id === null || currentGame.id === undefined) return
+
+    addLog('info', 'blockchain', 'Requesting game resolution...', { gameId: currentGame.id })
+
+    try {
+      requestGameResolutionWrite({
+        address: CONTRACT_ADDRESS,
+        abi: CONTRACT_ABI,
+        functionName: 'requestGameResolution',
+        args: [BigInt(currentGame.id)]
+      })
+
+      addLog('success', 'blockchain', 'Game resolution request submitted', { gameId: currentGame.id })
+
+    } catch (error) {
+      addLog('error', 'blockchain', 'Failed to request game resolution', {
+        error: error instanceof Error ? error.message : String(error),
+        gameId: currentGame.id
+      })
+      console.error('Error requesting game resolution:', error)
+    }
+  }
+
   const handleResolveGame = async () => {
     if (currentGame.id === null || currentGame.id === undefined) return
     if (!address) return
@@ -875,17 +911,7 @@ export function GameInterface() {
     }
   }
 
-  // Helper function to get status text
-  const getStatusText = (status: number) => {
-    switch (status) {
-      case 0: return 'WaitingForPlayers'
-      case 1: return 'WaitingForMoves'
-      case 2: return 'MovesCommitted'
-      case 3: return 'DecryptionPending' // Updated name
-      case 4: return 'ResultsDecrypted'
-      default: return `Unknown(${status})`
-    }
-  }
+
 
   // ... (rest of helper functions)
 
@@ -1397,7 +1423,7 @@ export function GameInterface() {
                   {gameResults && (
                     <div className="text-center">
                       <div className={`text-2xl font-bold ${gameResults[0] ? 'text-yellow-600' :
-                          gameResults[1] ? 'text-blue-600' : 'text-red-600'
+                        gameResults[1] ? 'text-blue-600' : 'text-red-600'
                         }`}>
                         {gameResults[0] ? '🎯 IT\'S A DRAW!' :
                           gameResults[1] ? '🏆 PLAYER 1 WINS!' : '🏆 PLAYER 2 WINS!'}
@@ -1420,7 +1446,7 @@ export function GameInterface() {
                           <div className="flex justify-between items-center">
                             <span className="font-semibold">Result:</span>
                             <span className={`font-bold text-lg ${gameResults[0] ? 'text-yellow-600' :
-                                gameResults[1] ? 'text-blue-600' : 'text-red-600'
+                              gameResults[1] ? 'text-blue-600' : 'text-red-600'
                               }`}>
                               {gameResults[0] ? '🎯 DRAW!' :
                                 gameResults[1] ? '🏆 PLAYER 1 WINS!' : '🏆 PLAYER 2 WINS!'}
